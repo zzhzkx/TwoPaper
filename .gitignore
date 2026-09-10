@@ -1,0 +1,14 @@
+# TwoPaper 根目录 .gitignore
+# 核心安全：ENV/ 下存放真实 API key（ENV_API.txt 等），严禁进 git。
+ENV/
+ENV_API.txt
+**/ENV_API.txt
+
+# 下载与全文产物
+downloads/
+downloads_smoke/
+fulltext/
+
+# 临时文件
+tmp/
+temp/

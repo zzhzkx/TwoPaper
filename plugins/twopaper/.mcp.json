@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "twopaper": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/server.js"],
+      "env": {
+        "WOS_API_KEY": "${WOS_API_KEY}",
+        "PUBMED_API_KEY": "${PUBMED_API_KEY}",
+        "ELSEVIER_API_KEY": "${ELSEVIER_API_KEY}",
+        "SPRINGER_API_KEY": "${SPRINGER_API_KEY}",
+        "WILEY_TDM_TOKEN": "${WILEY_TDM_TOKEN}",
+        "SEMANTIC_SCHOLAR_API_KEY": "${SEMANTIC_SCHOLAR_API_KEY}",
+        "OPENALEX_API_KEY": "${OPENALEX_API_KEY}",
+        "MINERU_TOKEN": "${MINERU_TOKEN}",
+        "OA_EMAIL": "${OA_EMAIL}",
+        "CROSSREF_MAILTO": "${CROSSREF_MAILTO}",
+        "DOWNLOAD_PER_MINUTE": "${DOWNLOAD_PER_MINUTE}",
+        "DOWNLOAD_PER_HOUR": "${DOWNLOAD_PER_HOUR}",
+        "DOWNLOAD_PER_DAY": "${DOWNLOAD_PER_DAY}",
+        "GET_PDF_BRIDGE": "${GET_PDF_BRIDGE}"
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "twopaper",
+  "displayName": "TwoPaper",
+  "description": "One-stop academic literature tools for agents: aggregate search, unified PDF download, full-text PDF→Markdown via MinerU, and source-attributed analysis across 13+ platforms (arXiv, PubMed, Crossref, Semantic Scholar, Scopus, Springer, WoS, etc.) with scansci bridging for paywalled papers.",
+  "author": {
+    "name": "zzhzkx",
+    "url": "https://github.com/zzhzkx"
+  },
+  "license": "MIT",
+  "skills": "./skills"
+}

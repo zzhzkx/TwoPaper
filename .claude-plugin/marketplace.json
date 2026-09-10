@@ -1,0 +1,17 @@
+{
+  "name": "twopaper-market",
+  "owner": {
+    "name": "zzhzkx",
+    "email": "zzhzkx@users.noreply.github.com"
+  },
+  "plugins": [
+    {
+      "name": "twopaper",
+      "source": "./plugins/twopaper",
+      "description": "One-stop academic literature tools for agents: aggregate search, unified PDF download, full-text PDF→Markdown via MinerU, and source-attributed analysis across 13+ platforms.",
+      "author": {
+        "name": "zzhzkx"
+      }
+    }
+  ]
+}
