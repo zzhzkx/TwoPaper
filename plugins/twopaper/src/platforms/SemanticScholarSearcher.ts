@@ -367,8 +367,21 @@ export class SemanticScholarSearcher extends PaperSource {
       response.data.pipe(writer);
 
       return new Promise((resolve, reject) => {
-        writer.on('finish', () => resolve(filePath));
-        writer.on('error', reject);
+        let settled = false;
+        const finish = (error?: Error) => {
+          if (settled) return;
+          settled = true;
+          response.data?.destroy?.();
+          if (error) {
+            try { fs.unlinkSync(filePath); } catch { /* 半截文件清理失败可忽略 */ }
+            reject(error);
+          } else {
+            resolve(filePath);
+          }
+        };
+        writer.on('finish', () => finish());
+        writer.on('error', (e) => finish(e));
+        response.data.on('error', (e: Error) => { writer.destroy(); finish(e); });
       });
     } catch (error) {
       this.handleHttpError(error, 'download PDF');

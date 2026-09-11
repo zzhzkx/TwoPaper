@@ -8,7 +8,13 @@
 import type { Searchers } from '../mcp/searchers.js';
 import type { Paper } from '../models/Paper.js';
 import type { SearchOptions } from '../platforms/PaperSource.js';
+import { withTimeout } from '../utils/SecurityUtils.js';
+import { TIMEOUTS } from '../config/constants.js';
+import { mapLimit } from '../utils/mapLimit.js';
 import { logDebug } from '../utils/Logger.js';
+
+/** 聚合时同时向外部平台发起的最大并发数（物理上限，避免一次打满全部渠道触发限流）。 */
+const AGGREGATE_CONCURRENCY = 6;
 
 export interface AggregateFailure {
   platform: string;
@@ -54,32 +60,37 @@ export async function aggregateSearch(
 
   const perPlatform = Math.max(1, Math.ceil(maxResults / Math.max(1, enabled.length)) + 1);
 
-  const settled = await Promise.allSettled(
-    enabled.map(async (name) => {
+  // 有界并发（防打爆各平台限流）+ 每平台整体超时（防单平台挂起拖死整次聚合）。
+  // 每平台任务自捕获为 ok/fail，mapLimit 永不 reject → 聚合必然有界、失败隔离，绝不无限等待。
+  const outcomes = await mapLimit(enabled, AGGREGATE_CONCURRENCY, async (name) => {
+    try {
       const searcher = searchers[name];
-      if (!searcher || typeof (searcher as any).search !== 'function') return [];
+      if (!searcher || typeof (searcher as any).search !== 'function') return { ok: true as const, papers: [] as Paper[] };
       const caps = (searcher as any).getCapabilities?.();
-      if (!caps?.search) return [];
-      if (caps.requiresApiKey && !(searcher as any).hasApiKey?.()) return [];
-      const results = await (searcher as any).search(query, {
-        ...options,
-        maxResults: perPlatform
-      });
-      return Array.isArray(results) ? results : [];
-    })
-  );
+      if (!caps?.search) return { ok: true as const, papers: [] as Paper[] };
+      if (caps.requiresApiKey && !(searcher as any).hasApiKey?.()) return { ok: true as const, papers: [] as Paper[] };
+      const results = await withTimeout(
+        (searcher as any).search(query, { ...options, maxResults: perPlatform }),
+        TIMEOUTS.DEFAULT,
+        `${String(name)} search timed out`
+      );
+      return { ok: true as const, papers: Array.isArray(results) ? results : [] as Paper[] };
+    } catch (e: any) {
+      return { ok: false as const, error: String(e?.message || e) };
+    }
+  });
 
   const failures: AggregateFailure[] = [];
   const byKey: Map<string, Paper> = new Map();
 
   for (let i = 0; i < enabled.length; i++) {
     const name = String(enabled[i]);
-    const result = settled[i];
-    if (result.status === 'rejected') {
-      failures.push({ platform: name, error: String(result.reason?.message || result.reason) });
+    const outcome = outcomes[i];
+    if (!outcome.ok) {
+      failures.push({ platform: name, error: outcome.error });
       continue;
     }
-    for (const paper of result.value) {
+    for (const paper of outcome.papers) {
       const key = dedupKey(paper);
       const existing = byKey.get(key);
       if (!existing) {

@@ -13,7 +13,9 @@ import { PaperNamer } from '../services/PaperNamer.js';
 import { PlatformRegistry } from '../services/PlatformRegistry.js';
 import { missingCredentials } from '../services/config/credentials.js';
 import { PDFExtractor } from '../utils/PDFExtractor.js';
-import { sanitizeDownloadPath, sanitizeDoi } from '../utils/SecurityUtils.js';
+import { sanitizeDownloadPath, sanitizeDoi, withTimeout } from '../utils/SecurityUtils.js';
+import { TIMEOUTS } from '../config/constants.js';
+import { mapLimit } from '../utils/mapLimit.js';
 import { logDebug } from '../utils/Logger.js';
 
 const citationService = new CitationService();
@@ -25,18 +27,21 @@ const paperNamer = new PaperNamer();
 const platformRegistry = new PlatformRegistry();
 const pdfExtractor = new PDFExtractor();
 
-/** 跨平台按 DOI 定位第一篇论文（为下载命名/全文获取提供元数据）。 */
+/** 跨平台按 DOI 定位第一篇论文（为下载命名/全文获取提供元数据）。有界并行 + 整体超时。 */
 async function findPaperByDoiAcrossPlatforms(searchers: Searchers, doi: string): Promise<Paper | null> {
-  for (const [name, searcher] of Object.entries(searchers)) {
-    if (['wos', 'scholar', 'scihub'].includes(name)) continue;
-    try {
-      const paper = await (searcher as PaperSource).getPaperByDoi(doi);
-      if (paper) return paper;
-    } catch {
-      // 平台级隔离：单个平台失败不阻断
-    }
-  }
-  return null;
+  const { default: pLimit } = await import('p-limit');
+  const limit = pLimit(4);
+  const tasks = Object.entries(searchers)
+    .filter(([name]) => !['wos', 'scholar', 'scihub'].includes(name))
+    .map(([, searcher]) => limit(async () => {
+      try {
+        return await (searcher as PaperSource).getPaperByDoi(doi);
+      } catch {
+        return null; // 平台级隔离：单个平台失败不阻断
+      }
+    }));
+  const results = await withTimeout(Promise.all(tasks), TIMEOUTS.DEFAULT, 'Cross-platform DOI lookup timed out');
+  return results.find((p) => p !== null) || null;
 }
 
 interface DownloadOutcome {
@@ -361,17 +366,26 @@ export async function handleToolCall(
       const results: Record<string, any>[] = [];
 
       if (platform === 'all') {
-        for (const [platformName, searcher] of Object.entries(searchers)) {
-          if (platformName === 'wos' || platformName === 'scholar') continue;
-          try {
-            const paper = await (searcher as PaperSource).getPaperByDoi(cleanDoi);
-            if (paper) {
-              results.push(PaperFactory.toDict(paper));
-            }
-          } catch (error) {
-            logDebug(`Error getting paper by DOI from ${platformName}:`, error);
-          }
-        }
+        const { default: pLimit } = await import('p-limit');
+        const limit = pLimit(4);
+        const hits = await withTimeout(
+          Promise.all(
+            Object.entries(searchers)
+              .filter(([name]) => !['wos', 'scholar', 'scihub'].includes(name))
+              .map(([platformName, searcher]) => limit(async () => {
+                try {
+                  const paper = await (searcher as PaperSource).getPaperByDoi(cleanDoi);
+                  return paper ? PaperFactory.toDict(paper) : null;
+                } catch (error) {
+                  logDebug(`Error getting paper by DOI from ${platformName}:`, error);
+                  return null;
+                }
+              }))
+          ),
+          TIMEOUTS.DEFAULT,
+          'Cross-platform DOI lookup timed out'
+        );
+        for (const hit of hits) if (hit) results.push(hit);
       } else {
         const searcher = (searchers as any)[platform];
         if (!searcher) {
@@ -571,10 +585,8 @@ export async function handleToolCall(
       if (cleanDoi) {
         paper = await findPaperByDoiAcrossPlatforms(searchers, cleanDoi);
       } else if (platform && paperId) {
-        const searcher = (searchers as any)[platform];
-        if (searcher?.getPaperByDoi && cleanDoi) {
-          paper = await searcher.getPaperByDoi(cleanDoi);
-        }
+        // paperId 路径：携带 source+paperId，交 downloadPaperPdf 走平台下载（而非 try DOI）
+        paper = { paperId, source: platform } as unknown as Paper;
       }
 
       const outcome = await downloadPaperPdf(searchers, paper, cleanDoi || doi || paperId, savePath);
@@ -592,16 +604,16 @@ export async function handleToolCall(
 
     case 'get_fulltext': {
       const { doi, paperId, platform, pdfPath, maxPages } = args;
+      const cleanDoi = doi && sanitizeDoi(doi).valid ? sanitizeDoi(doi).sanitized : '';
+      let paper: Paper | null = null;
+      if (cleanDoi) {
+        paper = await findPaperByDoiAcrossPlatforms(searchers, cleanDoi);
+      } else if (platform && paperId) {
+        paper = { paperId, source: platform } as unknown as Paper;
+      }
+
       if (!mineru.hasToken) {
         // 降级：有本地 fullText 能力的平台用 readPaper，否则提示配置 token
-        let paper: Paper | null = null;
-        if (doi) {
-          const r = sanitizeDoi(doi);
-          if (r.valid) paper = await findPaperByDoiAcrossPlatforms(searchers, r.sanitized);
-        } else if (platform && paperId) {
-          const searcher = (searchers as any)[platform];
-          if (searcher?.getPaperByDoi) paper = await searcher.getPaperByDoi(doi || '');
-        }
         const searcher = paper?.source ? (searchers as any)[paper.source] : null;
         if (searcher?.getCapabilities?.()?.fullText) {
           const text = await searcher.readPaper(paper!.paperId || paperId);
@@ -612,10 +624,7 @@ export async function handleToolCall(
 
       let sourcePdf = pdfPath || null;
       if (!sourcePdf) {
-        let paper: Paper | null = null;
-        const cleanDoi = doi && sanitizeDoi(doi).valid ? sanitizeDoi(doi).sanitized : '';
-        if (cleanDoi) paper = await findPaperByDoiAcrossPlatforms(searchers, cleanDoi);
-        const outcome = await downloadPaperPdf(searchers, paper, cleanDoi || doi || paperId, undefined);
+        const outcome = await downloadPaperPdf(searchers, paper, cleanDoi || doi || paperId || '', undefined);
         if (outcome.status === 'downloaded' && outcome.path) sourcePdf = outcome.path;
         else if (outcome.hint) {
           return jsonTextResponse(`Need PDF first. Host should call scansci bridge:\n\n${JSON.stringify(outcome.hint, null, 2)}`);
