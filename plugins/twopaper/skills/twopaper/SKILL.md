@@ -1,32 +1,57 @@
 ---
 name: twopaper
-description: TwoPaper 学术文献一站式总入口。当用户需要检索学术论文、获取 PDF、把 PDF 转 Markdown 全文、查引用数据，或不清楚用哪个命令时，从这里进入。会按需路由到 twopaper-search / twopaper-pdf / twopaper-fulltext / twopaper-citations 子技能。
+description: TwoPaper 学术文献一站式总入口。用户要检索论文、拿 PDF、把 PDF 转 Markdown 全文、查引用/被引数据，或不确定该用哪个命令时，从这里进入并路由到 twopaper-search / twopaper-pdf / twopaper-fulltext / twopaper-citations。
 ---
 
 # TwoPaper 学术文献工作流（总入口）
 
-TwoPaper 通过本机 MCP server（`twopaper`，23 个工具）给 Agent 提供学术文献能力。**MCP 只做证据工具，综述/对比/找 gap 等分析由宿主 Agent 完成，并始终溯源。**
+TwoPaper 通过本机 MCP server `twopaper` 提供 23 个工具，覆盖 **检索 → 拿 PDF → 读全文 → 查引用** 全链路。
 
-先调用 `get_platform_status(validate=false)` 看渠道/凭证/下载限流状态，再决定走哪条路。
+## 分工边界（重要）
 
-## 命令总览（23 个工具，分 4 组）
+- **MCP 只提供证据工具**：搜索、下载、解析、引用数据。它不写综述。
+- **综述 / 对比 / 找 gap 由你（宿主 Agent）完成**，且**每一条结论必须可溯源**（带 DOI 或来源库）。
+- 拿不到的内容就如实标注"仅元数据 / 仅摘要"，**绝不臆造正文**。
 
-| 组 | 工具 | 用途 |
+## 先看渠道状态
+
+首次使用、或怀疑某渠道失败时，先调 `get_platform_status`（`validate=false`，不触发真实请求）：
+
+```json
+{ "tool": "get_platform_status", "arguments": { "validate": false } }
+```
+
+它返回每个渠道的四态（`UNCONFIGURED` / `OK` / `NEED_LOGIN` / `DEGRADED`）、缺失的 env（`missing_credentials`）、下载限流余量、scansci 桥接状态。**先看它再决定走哪条路**，能避免在没配 key 的渠道上白等。
+
+## 四个入口
+
+| 用户意图 | 进入 | 核心工具 |
 |---|---|---|
-| **检索** | `search_papers`(`all`) | 聚合搜索，跨平台并发+去重+来源标注（首选） |
-| | `search_arxiv` / `search_pubmed` / `search_biorxiv` / `search_medrxiv` / `search_semantic_scholar` / `search_iacr` / `search_crossref` / `search_springer` / `search_scopus` / `search_sciencedirect` / `search_webofscience` / `search_google_scholar` / `search_scihub` | 单平台精确检索（需要该库语法时用） |
-| | `get_paper_by_doi` | 按 DOI 取元数据 |
-| | `get_platform_status` | 渠道/凭证四态矩阵 |
-| **PDF** | `get_pdf` / `get_oa_pdf` / `download_paper` | 统一拿 PDF / OA 定位 / 平台下载 |
-| | `search_scihub`(+`downloadPdf`) / `check_scihub_mirrors` / `get_scansci_status` | 灰色源兜底 / 镜像健康 / 桥接状态 |
-| **全文** | `get_fulltext` | MinerU PDF→Markdown |
-| **引用** | `get_citations` | 引用/参考文献/影响力数据 |
+| 搜文献 / 找某主题论文 / 检索某数据库 | [twopaper-search](twopaper-search) | `search_papers`（聚合）、13 个单平台检索、`get_paper_by_doi` |
+| 要论文 PDF 文件 | [twopaper-pdf](twopaper-pdf) | `get_pdf`、`get_oa_pdf`、`download_paper`、`search_scihub` |
+| 要读论文正文 / PDF 转 Markdown | [twopaper-fulltext](twopaper-fulltext) | `get_fulltext`（MinerU） |
+| 要引用数 / 参考文献 / 影响力 | [twopaper-citations](twopaper-citations) | `get_citations` |
 
-## 怎么选
+## 典型端到端链路
 
-- **泛查文献** → 进入 [twopaper-search](search)（默认 `search_papers(all)`）
-- **拿 PDF** → 进入 [twopaper-pdf](pdf)
-- **要全文正文** → 进入 [twopaper-fulltext](fulltext)
-- **要引用/被引数** → 进入 [twopaper-citations](citations)
+**"帮我调研某个主题并写综述"**：
 
-每个子 skill 里都写清了该组所有命令的调用方式、参数和示例。若任务横跨多组（如"搜到文献→拿PDF→读全文→写综述"），依次进入对应子 skill 即可，最后分析时必须给出来源（DOI / altSources）。
+1. `search_papers(platform="all")` 聚合检索（跨平台并发去重，首选）
+2. 从结果挑出高价值论文 → `get_pdf` 拿 PDF（合法 OA → 平台 → 桥接兜底）
+3. `get_fulltext(pdfPath=...)` 转 Markdown 读正文
+4. `get_citations` 补引用规模
+5. **你**基于正文写分析，引用处带 `(doi:10.xxxx/yyy)`
+
+**横跨多组时依次进入对应子技能即可。** 最后交付的分析里必须给出处（DOI / 来源库）。
+
+## 工具全集（23 个，按功能分组）
+
+| 组 | 工具 |
+|---|---|
+| **聚合与元数据** | `search_papers`、`get_paper_by_doi`、`get_platform_status` |
+| **单平台检索（13）** | `search_arxiv`、`search_webofscience`、`search_pubmed`、`search_biorxiv`、`search_medrxiv`、`search_semantic_scholar`、`search_iacr`、`search_google_scholar`、`search_sciencedirect`、`search_springer`、`search_scopus`、`search_crossref`、`search_scihub` |
+| **PDF 获取** | `get_pdf`、`get_oa_pdf`、`download_paper`、`check_scihub_mirrors`、`get_scansci_status` |
+| **全文解析** | `get_fulltext` |
+| **引用数据** | `get_citations` |
+
+各工具的参数与示例见对应子技能。

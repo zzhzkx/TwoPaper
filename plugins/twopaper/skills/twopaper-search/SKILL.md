@@ -1,13 +1,15 @@
 ---
 name: twopaper-search
-description: 学术文献检索。当用户要"搜索/检索/查找/综述文献""找某主题的论文""查某篇论文""检索某数据库(PubMed/arXiv/Scopus/Web of Science/Springer/Crossref/Google Scholar)"时触发。提供聚合搜索与 13 个单平台检索命令，按 DOI 查元数据，查渠道状态。
+description: 学术文献检索。用户要"搜索/检索/查找/综述文献""找某主题的论文""查某篇论文的元数据""检索某数据库(PubMed/arXiv/Scopus/Web of Science/Springer/Crossref/Semantic Scholar)"时触发。提供聚合搜索、13 个单平台检索、按 DOI 查元数据、渠道状态查询。
 ---
 
-# 学术文献检索（search）
+# 学术文献检索
 
-检索是 TwoPaper 的第一环。提供两条路：**聚合搜索**（默认，跨 13+ 平台并发）与**单平台精确检索**（需要特定库语法/高被引/医学/预印本时）。
+两条路：**聚合搜索**（默认，跨多平台并发）与**单平台精确检索**（需要特定库语法时）。
 
-## A. 聚合搜索（首选）
+---
+
+## A. 聚合搜索 `search_papers`（首选）
 
 ```json
 {
@@ -22,44 +24,109 @@ description: 学术文献检索。当用户要"搜索/检索/查找/综述文献
 }
 ```
 
-- `platform:"all"` → 并发查询多个可用平台（**排除 scihub；googlescholar 需代理且默认关闭**），按 DOI→标题跨源去重，每篇合并 `altSources`（命中哪些库）。
-- 响应含 `count` / `sources_hit` / `failures`。`failures` 里的单平台错误是**隔离**的，别当成整体失败。
-- 支持过滤：`year`、`author`、`journal`、`category`(如 cs.AI)、`sortBy`(relevance/date/citations)、`sortOrder`。
-- 通用排序对聚合只是提示，最终由各库返回 + 服务端合并。
+`platform:"all"` 的行为：
 
-## B. 单平台精确检索（需要特定库语法时才用）
+- **真并发**查询多个可用平台，按 **DOI → 标题** 跨源去重，每篇合并 `altSources`（命中哪些库）。
+- 自动**排除**：`scihub`（其 search 语义是 DOI/URL，不是关键词）、`wos`（`webofscience` 的别名，避免重复）、`googlescholar`（反爬风险，默认关闭；用 `search_google_scholar` 单独触发）。
+- 只查询**已配置凭证**的平台；未配 key 的渠道自动跳过，不会白等。
+- 有并发上限与单平台超时保护，**单个平台挂起或失败不影响整体**。
 
-每个命令只搜一个库，参数与返回结构统一（`paper_id/doi/title/authors/abstract` + `source`）。
+**返回结构**：
 
-| 库 | 命令 | 特有参数 |
+```json
+{
+  "count": 10,
+  "sources_hit": ["arxiv", "pubmed", "crossref"],
+  "failures": [{ "platform": "semantic", "error": "429 ..." }]
+}
+```
+
+`failures` 是**平台级隔离**的错误。请在回答里告知用户哪些渠道失败，但结果本身可用，不要当成整体失败。
+
+**参数**（`query` 必填）：
+
+| 参数 | 类型 | 说明 |
 |---|---|---|
-| arXiv 预印本(计算机/物理/数学) | `search_arxiv` | `category`(cs.AI)、`author`、`year` |
-| PubMed 医学/MEDLINE | `search_pubmed` | `author`、`journal`、`publicationType`(数组) |
-| bioRxiv 生物预印本 | `search_biorxiv` | `days`、`category` |
-| medRxiv 医学预印本 | `search_medrxiv` | `days`、`category` |
-| Semantic Scholar(带引用数) | `search_semantic_scholar` | `fieldsOfStudy`(数组) |
-| IACR 密码学 ePrint | `search_iacr` | `fetchDetails`(慢) |
-| Crossref(全出版商元数据) | `search_crossref` | `author`、`sortBy` |
-| Springer Nature | `search_springer` | `subject`、`openAccess`、`type`(Journal/Book/Chapter) |
-| Scopus 摘要引文库 | `search_scopus` | `affiliation`、`subject`、`documentType`、`openAccess` |
-| ScienceDirect | `search_sciencedirect` | `author`、`journal`、`openAccess` |
-| Web of Science 高被引 | `search_webofscience` | `author`、`journal` |
-| Google Scholar(需代理+反爬) | `search_google_scholar` | `yearLow`、`yearHigh`、`author` |
-| Sci-Hub(DOI/URL 检索，**灰色源**) | `search_scihub` | `doiOrUrl`、`downloadPdf`、`savePath` |
+| `query` | string | **必填**，检索词 |
+| `platform` | enum | 默认 `crossref`；`all` 为聚合；也可指定单个平台名 |
+| `maxResults` | 1–100 | 默认 10 |
+| `year` | string | `"2023"` / `"2020-2023"` / `"2020-"` |
+| `author` | string | 作者名 |
+| `journal` | string | 期刊名 |
+| `category` | string | 分类，如 arXiv 的 `cs.AI` |
+| `days` | number | 回溯天数（仅 bioRxiv/medRxiv） |
+| `fetchDetails` | bool | 抓详情（仅 IACR，较慢） |
+| `fieldsOfStudy` | string[] | 学科过滤（仅 Semantic Scholar） |
+| `sortBy` | enum | `relevance` / `date` / `citations` |
+| `sortOrder` | enum | `asc` / `desc` |
 
-示例（PubMed 医学库，按日期排序）：
+> 注：通用参数在各库支持度不同（如 `sortBy` 对聚合只是提示，最终由各库返回 + 服务端合并）。不支持的参数会被该渠道忽略。
+
+---
+
+## B. 单平台精确检索（需要特定库语法/定向覆盖时才用）
+
+每个命令只搜一个库，返回结构统一（`paper_id` / `doi` / `title` / `authors` / `abstract` + `source`）。
+
+| 库 | 命令 | 特有参数 | 何时用 |
+|---|---|---|---|
+| arXiv 预印本 | `search_arxiv` | `category`(cs.AI)、`author`、`year` | 计算机/物理/数学预印本 |
+| Web of Science | `search_webofscience` | `author`、`journal` | 高被引、引文分析（需 key） |
+| PubMed / MEDLINE | `search_pubmed` | `author`、`journal`、`publicationType`(数组) | 医学/生物医学 |
+| bioRxiv | `search_biorxiv` | `days`、`category` | 生物学预印本 |
+| medRxiv | `search_medrxiv` | `days`、`category` | 医学预印本 |
+| Semantic Scholar | `search_semantic_scholar` | `fieldsOfStudy`(数组) | 带引用数的 AI 检索 |
+| IACR ePrint | `search_iacr` | `fetchDetails`(慢) | 密码学 |
+| Crossref | `search_crossref` | `author`、`sortBy` | 全出版商元数据（免费） |
+| Springer Nature | `search_springer` | `subject`、`openAccess`、`type` | Springer 期刊/图书（需 key） |
+| Scopus | `search_scopus` | `affiliation`、`subject`、`documentType`、`openAccess` | 最大摘要引文库（需 key） |
+| ScienceDirect | `search_sciencedirect` | `author`、`journal`、`openAccess` | Elsevier 全文库（需 key） |
+| Google Scholar | `search_google_scholar` | `yearLow`、`yearHigh`、`author` | 需代理，反爬会失败 |
+| Sci-Hub | `search_scihub` | `doiOrUrl`、`downloadPdf`、`savePath` | **灰色源**，仅 DOI/URL |
+
+**示例**（PubMed 医学库，按日期排序）：
 
 ```json
 { "tool": "search_pubmed", "arguments": { "query": "diabetic retinopathy deep learning", "maxResults": 20, "sortBy": "date" } }
 ```
 
-## C. 按 DOI 查元数据 / 查渠道状态
+**领域选库建议**：医学 → `pubmed` / `medrxiv`；高被引 → `webofscience`；预印本 → `arxiv` / `biorxiv` / `medrxiv`；密码学 → `iacr`；综合兜底 → `crossref`。
 
-- `get_paper_by_doi`：`{ "doi": "10.1038/nature12373", "platform": "all" }` → 跨库取元数据（`all` 串行轮询各库）。
-- `get_platform_status(validate=false)`：输出四态矩阵 `UNCONFIGURED / OK / NEED_LOGIN / DEGRADED` + `missing_credentials`（缺哪个 env）+ 各渠道能力。刚安装或怀疑渠道失败时先看它。
+> `search_pubmed` 与 `search_semantic_scholar` 的响应会附带该库的限流状态（剩余 token / 每秒配额），便于判断是否被限流。
+
+---
+
+## C. 按 DOI 查元数据 `get_paper_by_doi`
+
+```json
+{ "tool": "get_paper_by_doi", "arguments": { "doi": "10.1038/nature12373", "platform": "all" } }
+```
+
+- `platform:"all"`：跨库并发查找（**排除** sci-hub / scholar / wos 别名），返回各库命中的元数据。
+- 指定平台：只查该库。
+- 找不到时返回 `No paper found with DOI: ...`。
+
+---
+
+## D. 渠道状态 `get_platform_status`
+
+```json
+{ "tool": "get_platform_status", "arguments": { "validate": false } }
+```
+
+| 参数 | 说明 |
+|---|---|
+| `validate` | `false`（默认）只看配置；`true` 会用真实请求验证 key 有效性（可能触发上游限流，慎用） |
+
+返回：四态矩阵（`UNCONFIGURED`/`OK`/`NEED_LOGIN`/`DEGRADED`）、每渠道能力（search/download/fulltext）、`setup_hint`、`key_env`、`missing_credentials`、下载限流余量、scansci 桥接状态。
+
+**何时用**：刚安装、怀疑渠道失败、或要判断"这个渠道为什么没结果"。
+
+---
 
 ## 工作准则
 
-1. **默认聚合**，具体库语法需求才退回单平台（医学用 PubMed/medRxiv、高被引用 WoS、预印本用 arXiv/bio/medRxiv、密码学用 IACR）。
-2. 聚合返回的 `/` `failures` 是平台隔离错误——提示用户哪些渠道失败，但正常返回可用结果。
-3. 所有结论必须可溯源：引用 DAO 时带上来源库（`altSources`）。
+1. **默认聚合**（`search_papers(platform="all")`），只在需要特定库语法时退回单平台。
+2. 报告结果时带上**来源库**（`altSources` / `source`），保证可溯源。
+3. `failures` 里的渠道失败要如实告知用户，但不要因此判定整体失败。
+4. 需要**正文**时不要停在这里——检索只给元数据与摘要，正文走 twopaper-fulltext。
