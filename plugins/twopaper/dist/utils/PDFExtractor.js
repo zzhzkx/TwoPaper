@@ -113,11 +113,28 @@ export class PDFExtractor {
             const writer = fs.createWriteStream(savePath);
             response.data.pipe(writer);
             return new Promise((resolve, reject) => {
-                writer.on('finish', () => {
-                    logDebug(`PDF saved to: ${savePath}`);
-                    resolve(savePath);
-                });
-                writer.on('error', reject);
+                let settled = false;
+                const finish = (error) => {
+                    if (settled)
+                        return;
+                    settled = true;
+                    response.data?.destroy?.();
+                    if (error) {
+                        try {
+                            fs.unlinkSync(savePath);
+                        }
+                        catch { /* 半截文件清理失败可忽略 */ }
+                        reject(error);
+                    }
+                    else {
+                        logDebug(`PDF saved to: ${savePath}`);
+                        resolve(savePath);
+                    }
+                };
+                writer.on('finish', () => finish());
+                writer.on('error', (e) => finish(e));
+                // 源流出错时若只监听 writer，Promise 会永久挂起（writer 永不 finish）
+                response.data.on('error', (e) => { writer.destroy(); finish(e); });
             });
         }
         catch (error) {

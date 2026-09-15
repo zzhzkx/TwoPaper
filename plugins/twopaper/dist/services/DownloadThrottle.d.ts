@@ -28,6 +28,12 @@ export declare class DownloadThrottle {
      */
     acquire(): void;
     /**
+     * 归还一次配额（下载失败时调用）。
+     * acquire() 在任何网络 I/O 之前乐观记账；若随后下载抛错（网络中断、403、路径写入失败），
+     * 不归还就会让失败的尝试白吃掉配额——默认 DOWNLOAD_PER_MINUTE=2 时两次失败即锁死一分钟。
+     */
+    release(): void;
+    /**
      * 只读检查，不消耗配额。超限返回 retryAfterMs(>0)，否则 0。
      */
     check(): number;

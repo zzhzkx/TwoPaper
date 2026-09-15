@@ -260,8 +260,23 @@ export class IACRSearcher extends PaperSource {
       response.data.pipe(writer);
 
       await new Promise<void>((resolve, reject) => {
-        writer.on('finish', () => resolve());
-        writer.on('error', reject);
+        let settled = false;
+        const finish = (error?: Error) => {
+          if (settled) return;
+          settled = true;
+          response.data?.destroy?.();
+          if (error) {
+            writer.destroy();
+            try { fs.unlinkSync(tmpPath); } catch { /* 半截文件清理失败可忽略 */ }
+            reject(error);
+          } else {
+            resolve();
+          }
+        };
+        writer.on('finish', () => finish());
+        writer.on('error', (e: Error) => finish(e));
+        // 源流出错时若只监听 writer，Promise 会永久挂起（writer 永不 finish）
+        response.data.on('error', (e: Error) => finish(e));
       });
 
       fs.renameSync(tmpPath, filePath);

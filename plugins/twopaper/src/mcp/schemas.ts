@@ -127,7 +127,30 @@ export const SearchGoogleScholarSchema = z
 export const GetPaperByDoiSchema = z
   .object({
     doi: z.string().min(1),
-    platform: z.enum(['arxiv', 'webofscience', 'all']).optional().default('all')
+    // handler 对非 'all' 的取值直接走 searchers[platform]，实际支持全部平台 key；
+    // 早期 schema 只列了 3 个，导致 crossref/pubmed 等被无谓拒绝。
+    platform: z
+      .enum([
+        'all',
+        'arxiv',
+        'webofscience',
+        'wos',
+        'pubmed',
+        'biorxiv',
+        'medrxiv',
+        'semantic',
+        'iacr',
+        'googlescholar',
+        'scholar',
+        'sciencedirect',
+        'springer',
+        'scopus',
+        'crossref',
+        'scihub',
+        'wiley'
+      ])
+      .optional()
+      .default('all')
   })
   .strip();
 

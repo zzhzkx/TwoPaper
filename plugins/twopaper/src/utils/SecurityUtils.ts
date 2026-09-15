@@ -40,7 +40,19 @@ export function sanitizeDownloadPath(
   }
 
   const resolvedBase = path.resolve(baseDir);
-  const resolvedTarget = path.resolve(resolvedBase, trimmed);
+  // 相对路径解析：默认相对 baseDir。但若用户已自带 baseDir 前缀（如 savePath="./downloads/x"），
+  // 再相对 baseDir 解析会得到 <cwd>/downloads/downloads/x（重复嵌套）。
+  // 此时改为相对 cwd 解析，解析结果仍受下方同样的越界检查约束。
+  let resolvedTarget: string;
+  if (path.isAbsolute(trimmed)) {
+    resolvedTarget = path.resolve(trimmed);
+  } else {
+    const baseName = path.basename(resolvedBase);
+    const firstSegment = trimmed.replace(/^\.\//, '').split(/[\\/]/)[0];
+    resolvedTarget = firstSegment === baseName
+      ? path.resolve(process.cwd(), trimmed)
+      : path.resolve(resolvedBase, trimmed);
+  }
 
   // Lexical check: ensure the resolved target stays within the base directory.
   const relative = path.relative(resolvedBase, resolvedTarget);

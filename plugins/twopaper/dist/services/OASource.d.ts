@@ -16,6 +16,13 @@ export declare class OASource {
     private readonly openalexLimiter;
     private readonly europepmcLimiter;
     private readonly email;
+    /**
+     * OA 源的重试策略：只对 429 重试 1 次。
+     * 默认 retryWithBackoff(maxRetries=3) 是为"本方可恢复故障"设计的，套在第三方 OA 源上会把
+     * 单源最坏墙钟放大到 4×超时+退避（实测可致 get_pdf 数分钟不返回）。
+     * OA 源对确定性负结果（404/422）本就不该重试，仅 429 值得等一次。
+     */
+    private static readonly OA_RETRY;
     constructor();
     /** 按 DOI 定位合法 OA PDF。按顺序尝试 Unpaywall → OpenAlex → Europe PMC，首个命中即返回。 */
     findPdfByDoi(doi: string): Promise<OaLocation | null>;

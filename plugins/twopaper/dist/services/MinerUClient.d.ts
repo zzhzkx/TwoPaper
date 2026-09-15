@@ -35,6 +35,8 @@ export declare class MinerUClient {
     private downloadMarkdown;
     private cacheMarkdown;
     private raiseHttp;
+    /** 带 AbortController 超时的 fetch，避免网络半开时 Promise 永久挂起。 */
+    private fetchWithTimeout;
     private sleep;
 }
 export default MinerUClient;

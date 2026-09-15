@@ -13,6 +13,34 @@ import { ScopusSearcher } from '../platforms/ScopusSearcher.js';
 import { CrossrefSearcher } from '../platforms/CrossrefSearcher.js';
 import { logDebug } from '../utils/Logger.js';
 let searchers = null;
+/** 注册表中的别名 key（与真实 key 指向同一实例），检索/聚合时按实例去重，避免同一渠道被查两次。 */
+const ALIAS_KEYS = new Set(['wos', 'scholar']);
+/**
+ * 参与"跨平台检索"的渠道名单（聚合搜索、跨平台 DOI 查找共用）。
+ *
+ * 按**实例**去重而非按 key 字符串：注册表同时保留真实 key（`googlescholar`）与别名（`scholar`），
+ * 早期实现只排除别名，导致 `googlescholar` 实际从未被排除——每次 DOI 查找白等约 28s 反爬。
+ *
+ * @param opts.includeScholar 显式允许 Google Scholar（反爬风险，默认排除）
+ * @param opts.exclude        额外排除的渠道名（如 Sci-Hub：其 search 语义是 DOI/URL 而非关键词）
+ */
+export function selectSearchable(registry, opts = {}) {
+    const extra = new Set(opts.exclude || []);
+    const seenInstances = new Set();
+    const picked = [];
+    for (const [key, searcher] of Object.entries(registry)) {
+        if (ALIAS_KEYS.has(key) || extra.has(key))
+            continue;
+        // 同一实例只取第一个真实 key（别名已在上一步过滤）
+        if (seenInstances.has(searcher))
+            continue;
+        seenInstances.add(searcher);
+        if (key === 'googlescholar' && !opts.includeScholar)
+            continue;
+        picked.push([key, searcher]);
+    }
+    return picked;
+}
 export function initializeSearchers() {
     if (searchers)
         return searchers;

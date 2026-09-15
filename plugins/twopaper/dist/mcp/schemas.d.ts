@@ -209,13 +209,13 @@ export declare const SearchGoogleScholarSchema: z.ZodObject<{
 }>;
 export declare const GetPaperByDoiSchema: z.ZodObject<{
     doi: z.ZodString;
-    platform: z.ZodDefault<z.ZodOptional<z.ZodEnum<["arxiv", "webofscience", "all"]>>>;
+    platform: z.ZodDefault<z.ZodOptional<z.ZodEnum<["all", "arxiv", "webofscience", "wos", "pubmed", "biorxiv", "medrxiv", "semantic", "iacr", "googlescholar", "scholar", "sciencedirect", "springer", "scopus", "crossref", "scihub", "wiley"]>>>;
 }, "strip", z.ZodTypeAny, {
-    platform: "arxiv" | "webofscience" | "all";
+    platform: "arxiv" | "webofscience" | "pubmed" | "wos" | "biorxiv" | "medrxiv" | "semantic" | "iacr" | "googlescholar" | "scholar" | "scihub" | "sciencedirect" | "springer" | "scopus" | "crossref" | "all" | "wiley";
     doi: string;
 }, {
     doi: string;
-    platform?: "arxiv" | "webofscience" | "all" | undefined;
+    platform?: "arxiv" | "webofscience" | "pubmed" | "wos" | "biorxiv" | "medrxiv" | "semantic" | "iacr" | "googlescholar" | "scholar" | "scihub" | "sciencedirect" | "springer" | "scopus" | "crossref" | "all" | "wiley" | undefined;
 }>;
 export declare const SearchSciHubSchema: z.ZodObject<{
     doiOrUrl: z.ZodString;

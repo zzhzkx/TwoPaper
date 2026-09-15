@@ -104,7 +104,7 @@ description: 学术文献检索。用户要"搜索/检索/查找/综述文献""�
 ```
 
 - `platform:"all"`：跨库**有界并发**查找（排除 sci-hub、wos 别名、googlescholar），返回各库命中的元数据。
-- 指定平台：只查该库。
+- 指定平台：只查该库（支持全部平台名：`arxiv`/`crossref`/`pubmed`/`springer`…）。
 - 找不到时返回 `No paper found with DOI: ...`。
 
 > 这一步是 `get_pdf` / `get_fulltext` 走 `doi` 参数时的内部前置步骤。若已知 arXiv ID，**别用 DOI 绕路**——直接 `get_pdf(paperId=..., platform="arxiv")` 更快。

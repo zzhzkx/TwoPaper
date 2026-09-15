@@ -4,7 +4,13 @@
  * 排除 scihub（search 语义为 DOI/URL 非关键词）与 scholar（代理/封禁风险，可用开关开启）。
  * 每平台配额 = ceil(maxResults / n) + 1，总量受 maxResults 约束。
  */
+import { selectSearchable } from '../mcp/searchers.js';
+import { withTimeout } from '../utils/SecurityUtils.js';
+import { TIMEOUTS } from '../config/constants.js';
+import { mapLimit } from '../utils/mapLimit.js';
 import { logDebug } from '../utils/Logger.js';
+/** 聚合时同时向外部平台发起的最大并发数（物理上限，避免一次打满全部渠道触发限流）。 */
+const AGGREGATE_CONCURRENCY = 6;
 function normalizeTitle(title) {
     return title.toLowerCase().replace(/[^a-z0-9]+/g, '').trim();
 }
@@ -20,35 +26,41 @@ function dedupKey(paper) {
  */
 export async function aggregateSearch(searchers, query, options, opts = {}) {
     const maxResults = opts.maxResults || options.maxResults || 10;
-    // 参与聚合的平台：有 search 能力且（无需 key 或已配 key）；排除 scihub / scholar（除非显式开启）。
-    const enabled = Object.keys(searchers).filter((name) => !['wos', 'scholar', 'scihub'].includes(String(name)) &&
-        (String(name) !== 'googlescholar' || !!opts.includeScholar));
+    // 参与聚合的平台：按实例去重（排别名）并排除 scihub；googlescholar 默认关闭（反爬，单次可白等 25–30s）。
+    const selected = selectSearchable(searchers, {
+        includeScholar: opts.includeScholar,
+        exclude: ['scihub']
+    });
+    const enabled = selected.map(([name]) => name);
     const perPlatform = Math.max(1, Math.ceil(maxResults / Math.max(1, enabled.length)) + 1);
-    const settled = await Promise.allSettled(enabled.map(async (name) => {
-        const searcher = searchers[name];
-        if (!searcher || typeof searcher.search !== 'function')
-            return [];
-        const caps = searcher.getCapabilities?.();
-        if (!caps?.search)
-            return [];
-        if (caps.requiresApiKey && !searcher.hasApiKey?.())
-            return [];
-        const results = await searcher.search(query, {
-            ...options,
-            maxResults: perPlatform
-        });
-        return Array.isArray(results) ? results : [];
-    }));
+    // 有界并发（防打爆各平台限流）+ 每平台整体超时（防单平台挂起拖死整次聚合）。
+    // 每平台任务自捕获为 ok/fail，mapLimit 永不 reject → 聚合必然有界、失败隔离，绝不无限等待。
+    const outcomes = await mapLimit(selected, AGGREGATE_CONCURRENCY, async ([name, searcher]) => {
+        try {
+            if (!searcher || typeof searcher.search !== 'function')
+                return { ok: true, papers: [] };
+            const caps = searcher.getCapabilities?.();
+            if (!caps?.search)
+                return { ok: true, papers: [] };
+            if (caps.requiresApiKey && !searcher.hasApiKey?.())
+                return { ok: true, papers: [] };
+            const results = await withTimeout(searcher.search(query, { ...options, maxResults: perPlatform }), TIMEOUTS.DEFAULT, `${String(name)} search timed out`);
+            return { ok: true, papers: Array.isArray(results) ? results : [] };
+        }
+        catch (e) {
+            return { ok: false, error: String(e?.message || e) };
+        }
+    });
     const failures = [];
     const byKey = new Map();
     for (let i = 0; i < enabled.length; i++) {
         const name = String(enabled[i]);
-        const result = settled[i];
-        if (result.status === 'rejected') {
-            failures.push({ platform: name, error: String(result.reason?.message || result.reason) });
+        const outcome = outcomes[i];
+        if (!outcome.ok) {
+            failures.push({ platform: name, error: outcome.error });
             continue;
         }
-        for (const paper of result.value) {
+        for (const paper of outcome.papers) {
             const key = dedupKey(paper);
             const existing = byKey.get(key);
             if (!existing) {

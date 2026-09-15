@@ -6,6 +6,7 @@
  */
 
 import type { Searchers } from '../mcp/searchers.js';
+import { selectSearchable } from '../mcp/searchers.js';
 import type { Paper } from '../models/Paper.js';
 import type { SearchOptions } from '../platforms/PaperSource.js';
 import { withTimeout } from '../utils/SecurityUtils.js';
@@ -51,20 +52,19 @@ export async function aggregateSearch(
 ): Promise<AggregatedResult> {
   const maxResults = opts.maxResults || options.maxResults || 10;
 
-  // 参与聚合的平台：有 search 能力且（无需 key 或已配 key）；排除 scihub / scholar（除非显式开启）。
-  const enabled = (Object.keys(searchers) as (keyof Searchers)[]).filter(
-    (name) =>
-      !['wos', 'scholar', 'scihub'].includes(String(name)) &&
-      (String(name) !== 'googlescholar' || !!opts.includeScholar)
-  );
+  // 参与聚合的平台：按实例去重（排别名）并排除 scihub；googlescholar 默认关闭（反爬，单次可白等 25–30s）。
+  const selected = selectSearchable(searchers, {
+    includeScholar: opts.includeScholar,
+    exclude: ['scihub']
+  });
+  const enabled = selected.map(([name]) => name);
 
   const perPlatform = Math.max(1, Math.ceil(maxResults / Math.max(1, enabled.length)) + 1);
 
   // 有界并发（防打爆各平台限流）+ 每平台整体超时（防单平台挂起拖死整次聚合）。
   // 每平台任务自捕获为 ok/fail，mapLimit 永不 reject → 聚合必然有界、失败隔离，绝不无限等待。
-  const outcomes = await mapLimit(enabled, AGGREGATE_CONCURRENCY, async (name) => {
+  const outcomes = await mapLimit(selected, AGGREGATE_CONCURRENCY, async ([name, searcher]) => {
     try {
-      const searcher = searchers[name];
       if (!searcher || typeof (searcher as any).search !== 'function') return { ok: true as const, papers: [] as Paper[] };
       const caps = (searcher as any).getCapabilities?.();
       if (!caps?.search) return { ok: true as const, papers: [] as Paper[] };

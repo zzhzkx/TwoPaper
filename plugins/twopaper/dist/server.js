@@ -9,6 +9,8 @@ import * as dotenv from 'dotenv';
 import { TOOLS } from './mcp/tools.js';
 import { initializeSearchers } from './mcp/searchers.js';
 import { handleToolCall } from './mcp/handleToolCall.js';
+import { withTimeout } from './utils/SecurityUtils.js';
+import { TIMEOUTS } from './config/constants.js';
 import { isMCPMode, logDebug } from './utils/Logger.js';
 dotenv.config();
 const server = new Server({
@@ -49,7 +51,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     logDebug(`Received tools/call request: ${name}`);
     try {
         const currentSearchers = initializeSearchers();
-        return await handleToolCall(name, args, currentSearchers);
+        return await withTimeout(handleToolCall(name, args, currentSearchers), TIMEOUTS.EXTENDED, `Tool '${name}' timed out`);
     }
     catch (error) {
         logDebug(`Error in tool ${name}:`, error);
@@ -84,17 +86,24 @@ async function main() {
         process.exit(1);
     }
 }
-// 处理未捕获的错误 - MCP模式下更温和
+// 处理未捕获的错误 - MCP模式下更温和（不退出，但向 stderr 留痕，避免完全静默）
+function logFatal(context, detail) {
+    // 不用 logDebug/logWarn：它们在 MCP 模式会早退，导致错误零输出。
+    try {
+        console.error(`[twopaper][${context}]`, detail instanceof Error ? detail.stack || detail.message : detail);
+    }
+    catch { /* stderr 不可用时忽略 */ }
+}
 process.on('uncaughtException', (error) => {
+    logFatal('uncaughtException', error);
     if (!isMCPMode()) {
-        logDebug('Uncaught Exception:', error);
         process.exit(1);
     }
     // MCP模式下不立即退出，避免干扰协议通信
 });
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', (reason) => {
+    logFatal('unhandledRejection', reason);
     if (!isMCPMode()) {
-        logDebug('Unhandled Rejection at:', promise, 'reason:', reason);
         process.exit(1);
     }
 });

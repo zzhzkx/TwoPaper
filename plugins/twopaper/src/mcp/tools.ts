@@ -304,8 +304,26 @@ export const TOOLS: Tool[] = [
         doi: { type: 'string', description: 'DOI (Digital Object Identifier)' },
         platform: {
           type: 'string',
-          enum: ['arxiv', 'webofscience', 'all'],
-          description: 'Platform to search'
+          enum: [
+            'all',
+            'arxiv',
+            'webofscience',
+            'wos',
+            'pubmed',
+            'biorxiv',
+            'medrxiv',
+            'semantic',
+            'iacr',
+            'googlescholar',
+            'scholar',
+            'sciencedirect',
+            'springer',
+            'scopus',
+            'crossref',
+            'scihub',
+            'wiley'
+          ],
+          description: 'Platform to search (default: all = query every available platform)'
         }
       },
       required: ['doi']

@@ -15,6 +15,13 @@ export class OASource {
     openalexLimiter;
     europepmcLimiter;
     email;
+    /**
+     * OA 源的重试策略：只对 429 重试 1 次。
+     * 默认 retryWithBackoff(maxRetries=3) 是为"本方可恢复故障"设计的，套在第三方 OA 源上会把
+     * 单源最坏墙钟放大到 4×超时+退避（实测可致 get_pdf 数分钟不返回）。
+     * OA 源对确定性负结果（404/422）本就不该重试，仅 429 值得等一次。
+     */
+    static OA_RETRY = { maxRetries: 1, initialDelayMs: 500, maxDelayMs: 2000 };
     constructor() {
         this.client = axios.create({
             timeout: TIMEOUTS.DEFAULT,
@@ -28,12 +35,16 @@ export class OASource {
     }
     /** 按 DOI 定位合法 OA PDF。按顺序尝试 Unpaywall → OpenAlex → Europe PMC，首个命中即返回。 */
     async findPdfByDoi(doi) {
-        const candidates = [this.fromUnpaywall(doi), this.fromOpenAlex(doi)];
+        // 惰性候选：命中后不再发起后续源的请求（避免构造即发起造成的上游负载与限流预算浪费）。
+        const candidates = [
+            () => this.fromUnpaywall(doi),
+            () => this.fromOpenAlex(doi)
+        ];
         if (this.email)
-            candidates.push(this.fromEuropePmcByDoi(doi));
+            candidates.push(() => this.fromEuropePmcByDoi(doi));
         for (const attempt of candidates) {
             try {
-                const loc = await attempt;
+                const loc = await attempt();
                 if (loc)
                     return loc;
             }
@@ -61,7 +72,7 @@ export class OASource {
         await this.unpaywallLimiter.waitForPermission();
         const res = await ErrorHandler.retryWithBackoff(() => this.client.get(`https://api.unpaywall.org/v2/${encodeURIComponent(doi)}`, {
             params: { email: this.email }
-        }), { context: 'Unpaywall OA lookup' });
+        }), { ...OASource.OA_RETRY, context: 'Unpaywall OA lookup' });
         const url = res?.data?.best_oa_location?.url_for_pdf;
         if (!url)
             return null;
@@ -71,7 +82,7 @@ export class OASource {
         await this.openalexLimiter.waitForPermission();
         const res = await ErrorHandler.retryWithBackoff(() => this.client.get(`${API_ENDPOINTS.OPENALEX}/works/https://doi.org/${encodeURIComponent(doi)}`, {
             headers: this.openalexKeyHeaders()
-        }), { context: 'OpenAlex OA lookup' });
+        }), { ...OASource.OA_RETRY, context: 'OpenAlex OA lookup' });
         const best = res?.data?.best_oa_location;
         const url = best?.pdf_url || best?.landing_page_url;
         if (!url)
@@ -82,7 +93,7 @@ export class OASource {
         await this.europepmcLimiter.waitForPermission();
         const res = await ErrorHandler.retryWithBackoff(() => this.client.get(`${API_ENDPOINTS.EUROPEPMC}/search`, {
             params: { query: `DOI:${doi}`, format: 'json', resultType: 'core' }
-        }), { context: 'Europe PMC DOI lookup' });
+        }), { ...OASource.OA_RETRY, context: 'Europe PMC DOI lookup' });
         const hit = res?.data?.resultList?.result?.[0];
         const fullText = hit?.fullTextUrlList?.fullTextUrl?.find((u) => u.documentStyle?.toLowerCase?.().includes('pdf'));
         const url = fullText?.url || hit?.fullTextUrlList?.fullTextUrl?.[0]?.url;
@@ -95,7 +106,7 @@ export class OASource {
         const query = year && /^\d{4}$/.test(year) ? `TITLE:"${title}" AND PUB_YEAR:${year}` : `TITLE:"${title}"`;
         const res = await ErrorHandler.retryWithBackoff(() => this.client.get(`${API_ENDPOINTS.EUROPEPMC}/search`, {
             params: { query, format: 'json', resultType: 'core' }
-        }), { context: 'Europe PMC title lookup' });
+        }), { ...OASource.OA_RETRY, context: 'Europe PMC title lookup' });
         const hit = res?.data?.resultList?.result?.[0];
         if (!hit)
             return null;

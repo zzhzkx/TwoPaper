@@ -1,3 +1,5 @@
+import * as path from 'path';
+import { selectSearchable } from './searchers.js';
 import { parseToolArgs } from './schemas.js';
 import { PaperFactory } from '../models/Paper.js';
 import { CitationService } from '../services/CitationService.js';
@@ -10,7 +12,8 @@ import { PaperNamer } from '../services/PaperNamer.js';
 import { PlatformRegistry } from '../services/PlatformRegistry.js';
 import { missingCredentials } from '../services/config/credentials.js';
 import { PDFExtractor } from '../utils/PDFExtractor.js';
-import { sanitizeDownloadPath, sanitizeDoi } from '../utils/SecurityUtils.js';
+import { sanitizeDownloadPath, sanitizeDoi, withTimeout } from '../utils/SecurityUtils.js';
+import { TIMEOUTS } from '../config/constants.js';
 import { logDebug } from '../utils/Logger.js';
 const citationService = new CitationService();
 const oaSource = new OASource();
@@ -20,21 +23,88 @@ const downloadThrottle = new DownloadThrottle();
 const paperNamer = new PaperNamer();
 const platformRegistry = new PlatformRegistry();
 const pdfExtractor = new PDFExtractor();
-/** 跨平台按 DOI 定位第一篇论文（为下载命名/全文获取提供元数据）。 */
+/** 跨平台 DOI 查找时，单平台元数据查询的封顶时间（避免一个慢平台吃掉整次调用的预算）。 */
+const DOI_PLATFORM_TIMEOUT = 8000;
+/**
+ * 跨平台按 DOI 定位第一篇论文（为下载命名/全文获取提供元数据）。
+ *
+ * 我们只需要**任意一个**平台给出元数据，因此采用"首个命中即返回"：
+ * 早期实现 await Promise.all(...)，必须等全部平台 settle，墙钟 = 最慢平台（曾实测 28s，几乎全是 GS 反爬）；
+ * 改为竞速后，墙钟 ≈ 最快可用平台。单平台仍各自限时，避免个别慢渠道拖尾。
+ */
 async function findPaperByDoiAcrossPlatforms(searchers, doi) {
-    for (const [name, searcher] of Object.entries(searchers)) {
-        if (['wos', 'scholar', 'scihub'].includes(name))
-            continue;
-        try {
-            const paper = await searcher.getPaperByDoi(doi);
-            if (paper)
-                return paper;
+    const { default: pLimit } = await import('p-limit');
+    const limit = pLimit(4);
+    return new Promise((resolve) => {
+        let pending = 0;
+        let settled = false;
+        const done = (paper) => {
+            if (settled)
+                return;
+            if (paper) {
+                settled = true;
+                resolve(paper); // 首个命中 → 立即返回，放弃其余结果
+            }
+            else if (--pending === 0) {
+                settled = true;
+                resolve(null); // 全部落空
+            }
+        };
+        const entries = selectSearchable(searchers, { exclude: ['scihub'] });
+        pending = entries.length;
+        if (pending === 0)
+            return resolve(null);
+        for (const [, searcher] of entries) {
+            limit(async () => {
+                try {
+                    // 单平台限时：getPaperByDoi 默认走 search()，内含 30s 超时 × 重试梯子，
+                    // 单个慢平台足以吃掉整个预算；这里按平台各自封顶。
+                    const paper = await withTimeout(searcher.getPaperByDoi(doi), DOI_PLATFORM_TIMEOUT, 'platform DOI lookup timed out');
+                    done(paper);
+                }
+                catch {
+                    done(null); // 平台级隔离：单个平台失败/超时不阻断
+                }
+            }).catch(() => done(null));
         }
-        catch {
-            // 平台级隔离：单个平台失败不阻断
+        // 总体兜底：即使所有平台都卡住，也必须在预算内返回，绝不无限等待。
+        const timer = setTimeout(() => {
+            if (!settled) {
+                settled = true;
+                resolve(null);
+            }
+        }, DOI_OVERALL_TIMEOUT);
+        timer.unref?.();
+    });
+}
+/** 跨平台 DOI 查找的整体预算上限（首个命中即返回，故通常远快于此）。 */
+const DOI_OVERALL_TIMEOUT = 15000;
+/**
+ * 已知 platform+paperId 时补齐元数据（作者/年份/标题），使 PaperNamer 能产出
+ * `作者_年份_短标题_哈希.pdf`，而不是退化成 `Unknown_paper_<hash>.pdf`。
+ * 优先用该平台自己的 getPaperByDoi（对 arXiv 类 DOI 实测约 1s）；失败则回退 stub，不阻断下载。
+ */
+async function resolvePaperStub(searchers, platform, paperId) {
+    const stub = { paperId, source: platform };
+    const searcher = searchers[platform];
+    if (!searcher)
+        return stub;
+    try {
+        // 先按 DOI 查（对 10.48550/arXiv.x 这类有效）；裸平台 ID（如 2012.14096）不是 DOI，
+        // 会被 getPaperByDoi 的校验挡下，再退回该平台自己的 search(paperId)。
+        let meta = null;
+        if (searcher.getPaperByDoi) {
+            meta = await withTimeout(searcher.getPaperByDoi(paperId), TIMEOUTS.HEALTH_CHECK, `${platform} metadata lookup timed out`);
         }
+        if (!meta && typeof searcher.search === 'function') {
+            meta = await withTimeout(searcher.search(paperId, { maxResults: 1 }).then((r) => r?.[0] || null), TIMEOUTS.HEALTH_CHECK, `${platform} metadata search timed out`);
+        }
+        return meta ? { ...meta, paperId, source: platform } : stub;
     }
-    return null;
+    catch (e) {
+        logDebug(`resolvePaperStub(${platform}/${paperId}) failed, using stub:`, e?.message);
+        return stub;
+    }
 }
 /** 统一下载：OA 直链/平台下载 → PaperNamer 命名 + DownloadThrottle 限流。 */
 async function downloadPaperPdf(searchers, paper, doi, savePathOverride) {
@@ -46,13 +116,21 @@ async function downloadPaperPdf(searchers, paper, doi, savePathOverride) {
         title: paper?.title,
         doi: cleanDoi
     };
+    // PaperNamer.resolveTargetPath 返回**文件全路径**（.../Author/Author_Year_Title_hash.pdf）。
+    // OA 分支直接写该文件；平台 downloadPdf 则把 savePath 当**目录**、自己再拼文件名，
+    // 因此两条分支必须分别传文件路径与目录，否则会产出 "名字以 .pdf 结尾的目录"。
     const target = savePathOverride
         ? sanitizeDownloadPath(savePathOverride, process.env.DEFAULT_DOWNLOAD_PATH || './downloads').sanitized
         : paperNamer.resolveTargetPath(meta).sanitized;
+    const targetDir = savePathOverride ? target : path.dirname(target);
     // 1. 合法 OA 直链
     let url = paper?.pdfUrl || null;
     if (!url) {
-        const oaLoc = await oaSource.findPdfByDoi(cleanDoi);
+        // 整体限时：三个 OA 源各带限流等待与重试，无界时单次可拖到分钟级。
+        const oaLoc = await withTimeout(oaSource.findPdfByDoi(cleanDoi).catch((e) => {
+            logDebug(`OA lookup failed for ${cleanDoi}:`, e?.message);
+            return null;
+        }), TIMEOUTS.DEFAULT, 'OA lookup timed out');
         url = oaLoc?.url || null;
     }
     if (url) {
@@ -64,7 +142,10 @@ async function downloadPaperPdf(searchers, paper, doi, savePathOverride) {
                 return { status: 'limit', retryAfterMs: e.retryAfterMs };
             throw e;
         }
-        const filePath = await pdfExtractor.downloadPdf(url, target);
+        const filePath = await pdfExtractor.downloadPdf(url, target).catch((e) => {
+            downloadThrottle.release(); // 失败不占用配额
+            throw e;
+        });
         return { status: 'downloaded', path: filePath };
     }
     // 2. 平台下载（paper 来自可下载平台）
@@ -79,7 +160,12 @@ async function downloadPaperPdf(searchers, paper, doi, savePathOverride) {
                     return { status: 'limit', retryAfterMs: e.retryAfterMs };
                 throw e;
             }
-            const filePath = await searcher.downloadPdf(paper.paperId || cleanDoi, { savePath: target });
+            const filePath = await searcher
+                .downloadPdf(paper.paperId || cleanDoi, { savePath: targetDir })
+                .catch((e) => {
+                downloadThrottle.release(); // 失败不占用配额
+                throw e;
+            });
             return { status: 'downloaded', path: filePath };
         }
     }
@@ -250,19 +336,23 @@ export async function handleToolCall(toolNameRaw, rawArgs, searchers) {
             const cleanDoi = doiResult.sanitized;
             const results = [];
             if (platform === 'all') {
-                for (const [platformName, searcher] of Object.entries(searchers)) {
-                    if (platformName === 'wos' || platformName === 'scholar')
-                        continue;
+                const { default: pLimit } = await import('p-limit');
+                const limit = pLimit(4);
+                const hits = await withTimeout(Promise.all(selectSearchable(searchers, { exclude: ['scihub'] }).map(([platformName, searcher]) => limit(async () => {
                     try {
-                        const paper = await searcher.getPaperByDoi(cleanDoi);
-                        if (paper) {
-                            results.push(PaperFactory.toDict(paper));
-                        }
+                        // 本分支要收集**所有**平台的结果，故不竞速；但单平台需各自封顶，
+                        // 否则一个慢渠道就会吃掉整个 30s 预算（arXiv 抖动时实测可达 80s）。
+                        const paper = await withTimeout(searcher.getPaperByDoi(cleanDoi), DOI_PLATFORM_TIMEOUT, `${platformName} DOI lookup timed out`);
+                        return paper ? PaperFactory.toDict(paper) : null;
                     }
                     catch (error) {
                         logDebug(`Error getting paper by DOI from ${platformName}:`, error);
+                        return null;
                     }
-                }
+                }))), TIMEOUTS.DEFAULT, 'Cross-platform DOI lookup timed out');
+                for (const hit of hits)
+                    if (hit)
+                        results.push(hit);
             }
             else {
                 const searcher = searchers[platform];
@@ -418,10 +508,8 @@ export async function handleToolCall(toolNameRaw, rawArgs, searchers) {
                 paper = await findPaperByDoiAcrossPlatforms(searchers, cleanDoi);
             }
             else if (platform && paperId) {
-                const searcher = searchers[platform];
-                if (searcher?.getPaperByDoi && cleanDoi) {
-                    paper = await searcher.getPaperByDoi(cleanDoi);
-                }
+                // paperId 路径：先补齐元数据（命名质量），再交 downloadPaperPdf 走平台下载。
+                paper = await resolvePaperStub(searchers, platform, paperId);
             }
             const outcome = await downloadPaperPdf(searchers, paper, cleanDoi || doi || paperId, savePath);
             if (outcome.status === 'downloaded') {
@@ -437,19 +525,16 @@ export async function handleToolCall(toolNameRaw, rawArgs, searchers) {
         }
         case 'get_fulltext': {
             const { doi, paperId, platform, pdfPath, maxPages } = args;
+            const cleanDoi = doi && sanitizeDoi(doi).valid ? sanitizeDoi(doi).sanitized : '';
+            let paper = null;
+            if (cleanDoi) {
+                paper = await findPaperByDoiAcrossPlatforms(searchers, cleanDoi);
+            }
+            else if (platform && paperId) {
+                paper = await resolvePaperStub(searchers, platform, paperId);
+            }
             if (!mineru.hasToken) {
                 // 降级：有本地 fullText 能力的平台用 readPaper，否则提示配置 token
-                let paper = null;
-                if (doi) {
-                    const r = sanitizeDoi(doi);
-                    if (r.valid)
-                        paper = await findPaperByDoiAcrossPlatforms(searchers, r.sanitized);
-                }
-                else if (platform && paperId) {
-                    const searcher = searchers[platform];
-                    if (searcher?.getPaperByDoi)
-                        paper = await searcher.getPaperByDoi(doi || '');
-                }
                 const searcher = paper?.source ? searchers[paper.source] : null;
                 if (searcher?.getCapabilities?.()?.fullText) {
                     const text = await searcher.readPaper(paper.paperId || paperId);
@@ -459,11 +544,7 @@ export async function handleToolCall(toolNameRaw, rawArgs, searchers) {
             }
             let sourcePdf = pdfPath || null;
             if (!sourcePdf) {
-                let paper = null;
-                const cleanDoi = doi && sanitizeDoi(doi).valid ? sanitizeDoi(doi).sanitized : '';
-                if (cleanDoi)
-                    paper = await findPaperByDoiAcrossPlatforms(searchers, cleanDoi);
-                const outcome = await downloadPaperPdf(searchers, paper, cleanDoi || doi || paperId, undefined);
+                const outcome = await downloadPaperPdf(searchers, paper, cleanDoi || doi || paperId || '', undefined);
                 if (outcome.status === 'downloaded' && outcome.path)
                     sourcePdf = outcome.path;
                 else if (outcome.hint) {

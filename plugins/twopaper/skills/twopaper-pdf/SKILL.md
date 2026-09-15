@@ -35,7 +35,7 @@ description: 学术论文 PDF 获取。用户要"下载/获取某篇论文的 PD
 | `doi` | DOI |
 | `paperId` | 平台内 ID（配合 `platform`） |
 | `platform` | `arxiv` / `biorxiv` / `medrxiv` / `semantic` / `iacr` / `scihub` / `springer` / `wiley` |
-| `savePath` | 覆盖保存**目录**（默认 `./downloads`）。传目录，不要传文件名 |
+| `savePath` | 保存目录（默认 `./downloads`）。传目录，不要传文件名。实际语义是**下载根目录之下的子目录**：`"./papers"` → `downloads/papers/`，写入被约束在 `downloads/` 内以阻止路径穿越 |
 
 **返回与命名**：
 

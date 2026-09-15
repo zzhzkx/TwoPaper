@@ -45,10 +45,10 @@ export class MinerUClient {
             throw new Error('MinerU: no signed upload URL returned');
         // 2. 上传文件
         const fileBuffer = fs.readFileSync(pdfPath);
-        const putRes = await this.fetchImpl(uploadUrl, {
+        const putRes = await this.fetchWithTimeout(uploadUrl, {
             method: 'PUT',
             body: new Uint8Array(fileBuffer)
-        });
+        }, TIMEOUTS.DOWNLOAD);
         if (!putRes.ok)
             throw new Error(`MinerU upload failed: HTTP ${putRes.status}`);
         // 3. 轮询任务结果
@@ -65,11 +65,11 @@ export class MinerUClient {
         };
     }
     async requestBatch(name) {
-        const res = await this.fetchImpl(`${this.baseUrl}/file-urls/batch`, {
+        const res = await this.fetchWithTimeout(`${this.baseUrl}/file-urls/batch`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.token}` },
             body: JSON.stringify({ files: [{ name, data_id: 'twopaper_pdf' }], model_version: DEFAULT_MODEL })
-        });
+        }, TIMEOUTS.EXTENDED);
         this.raiseHttp(res, 'file-urls/batch');
         const data = await res.json();
         const fileUrl = data?.data?.file_urls?.[0]?.url;
@@ -78,9 +78,9 @@ export class MinerUClient {
     async pollBatch(batchId, name) {
         const deadline = Date.now() + TIMEOUTS.BATCH + 60_000;
         while (Date.now() < deadline) {
-            const res = await this.fetchImpl(`${this.baseUrl}/extract-results/batch/${batchId}`, {
+            const res = await this.fetchWithTimeout(`${this.baseUrl}/extract-results/batch/${batchId}`, {
                 headers: { Authorization: `Bearer ${this.token}` }
-            });
+            }, TIMEOUTS.HEALTH_CHECK);
             if (res.ok) {
                 const data = await res.json();
                 const item = (data?.data?.extract_result || []).find((r) => r.file_name === name);
@@ -96,7 +96,7 @@ export class MinerUClient {
         throw new Error('MinerU parse timed out');
     }
     async downloadMarkdown(zipUrl) {
-        const res = await this.fetchImpl(zipUrl);
+        const res = await this.fetchWithTimeout(zipUrl, {}, TIMEOUTS.DOWNLOAD);
         if (!res.ok)
             throw new Error(`MinerU zip download failed: HTTP ${res.status}`);
         const buf = Buffer.from(await res.arrayBuffer());
@@ -118,6 +118,17 @@ export class MinerUClient {
     raiseHttp(res, op) {
         if (!res.ok) {
             throw new Error(`MinerU ${op} failed: HTTP ${res.status}`);
+        }
+    }
+    /** 带 AbortController 超时的 fetch，避免网络半开时 Promise 永久挂起。 */
+    async fetchWithTimeout(url, init, timeoutMs) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            return await this.fetchImpl(url, { ...init, signal: controller.signal });
+        }
+        finally {
+            clearTimeout(timer);
         }
     }
     async sleep(ms) {
