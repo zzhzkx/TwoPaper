@@ -35,11 +35,12 @@ description: 学术论文 PDF 获取。用户要"下载/获取某篇论文的 PD
 | `doi` | DOI |
 | `paperId` | 平台内 ID（配合 `platform`） |
 | `platform` | `arxiv` / `biorxiv` / `medrxiv` / `semantic` / `iacr` / `scihub` / `springer` / `wiley` |
-| `savePath` | 覆盖保存目录（默认 `./downloads`） |
+| `savePath` | 覆盖保存**目录**（默认 `./downloads`）。传目录，不要传文件名 |
 
 **返回与命名**：
 
 - 成功 → 本地路径，形如 `downloads/<作者>/作者_年份_短标题_哈希.pdf`，同 DOI 自动去重。
+- 用 `paperId` + `platform` 时，TwoPaper 会**先解析该平台元数据**，因此文件名同样带作者/年份/标题，而不是光秃秃的 ID。
 - **`Download throttled: retry after Ns`** → 按提示等待再试，**不要暴力重试**。
 - **`bridged_download` 指令块** → 合法途径都拿不到，见下方 D 节。
 

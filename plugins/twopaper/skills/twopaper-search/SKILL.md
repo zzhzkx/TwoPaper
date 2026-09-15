@@ -27,9 +27,10 @@ description: 学术文献检索。用户要"搜索/检索/查找/综述文献""�
 `platform:"all"` 的行为：
 
 - **真并发**查询多个可用平台，按 **DOI → 标题** 跨源去重，每篇合并 `altSources`（命中哪些库）。
-- 自动**排除**：`scihub`（其 search 语义是 DOI/URL，不是关键词）、`wos`（`webofscience` 的别名，避免重复）、`googlescholar`（反爬风险，默认关闭；用 `search_google_scholar` 单独触发）。
+- 自动**排除** `scihub`（其 search 语义是 DOI/URL，不是关键词）与 `wos`（`webofscience` 的别名，避免同一实例被查两次）。
+- `googlescholar` **默认不参与聚合**（反爬风险，且单次可白等 25–30s），需要时用 `search_google_scholar` 单独触发。
 - 只查询**已配置凭证**的平台；未配 key 的渠道自动跳过，不会白等。
-- 有并发上限与单平台超时保护，**单个平台挂起或失败不影响整体**。
+- 有并发上限（6）与单平台超时保护，**单个平台挂起或失败不影响整体**。
 
 **返回结构**：
 
@@ -102,9 +103,11 @@ description: 学术文献检索。用户要"搜索/检索/查找/综述文献""�
 { "tool": "get_paper_by_doi", "arguments": { "doi": "10.1038/nature12373", "platform": "all" } }
 ```
 
-- `platform:"all"`：跨库并发查找（**排除** sci-hub / scholar / wos 别名），返回各库命中的元数据。
+- `platform:"all"`：跨库**有界并发**查找（排除 sci-hub、wos 别名、googlescholar），返回各库命中的元数据。
 - 指定平台：只查该库。
 - 找不到时返回 `No paper found with DOI: ...`。
+
+> 这一步是 `get_pdf` / `get_fulltext` 走 `doi` 参数时的内部前置步骤。若已知 arXiv ID，**别用 DOI 绕路**——直接 `get_pdf(paperId=..., platform="arxiv")` 更快。
 
 ---
 

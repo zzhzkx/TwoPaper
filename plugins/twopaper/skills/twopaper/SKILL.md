@@ -23,6 +23,19 @@ TwoPaper 通过本机 MCP server `twopaper` 提供 23 个工具，覆盖 **检�
 
 它返回每个渠道的四态（`UNCONFIGURED` / `OK` / `NEED_LOGIN` / `DEGRADED`）、缺失的 env（`missing_credentials`）、下载限流余量、scansci 桥接状态。**先看它再决定走哪条路**，能避免在没配 key 的渠道上白等。
 
+## 已知渠道限制（避免白等）
+
+这些是**渠道本身的限制**，不是调用姿势问题。遇到时如实告知用户，不要反复重试。
+
+| 渠道 | 状况 | 应对 |
+|---|---|---|
+| `sciencedirect` | API key 可能无该产品授权（返回 401 / `Invalid or missing API key`） | 改用 `search_crossref` 或 `search_scopus` |
+| `semantic` | 免费层限流频繁（HTTP 429） | 配 `SEMANTIC_SCHOLAR_API_KEY`，或依赖聚合里的其他渠道 |
+| `googlescholar` | 反爬，单次可耗时 25–30s 后失败 | 已从聚合中默认排除；确需时单独调用并容忍失败 |
+| `biorxiv` | API 偶发返回非 200 / `empty messages` | 失败即跳过，用 `medrxiv` 或 `crossref` 补 |
+| `wiley` | 仅支持按 DOI 下载，不支持关键词检索；TDM 权限可能 403 | 用 `search_crossref` 找到文章后 `download_paper(platform="wiley")` |
+| `arxiv` | 响应延迟波动大（实测 1s ↔ 30s），偶发超时 | 单平台超时已隔离，聚合不受影响；必要时重试一次 |
+
 ## 四个入口
 
 | 用户意图 | 进入 | 核心工具 |
