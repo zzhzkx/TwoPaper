@@ -32,7 +32,8 @@ export class MinerUClient {
 
   constructor(opts: { token?: string; outputDir?: string; fetchImpl?: typeof fetch; baseUrl?: string } = {}) {
     this.token = opts.token || process.env.MINERU_TOKEN || '';
-    this.outputDir = opts.outputDir || process.env.MINERU_OUTPUT_DIR || './fulltext';
+    // 解析为绝对路径：返回给宿主的 cachePath 与写入位置完全一致、无歧义（与 PaperNamer 对齐）
+    this.outputDir = path.resolve(opts.outputDir || process.env.MINERU_OUTPUT_DIR || './fulltext');
     this.fetchImpl = opts.fetchImpl || fetch;
     this.baseUrl = opts.baseUrl || API_ENDPOINTS.MINERU;
   }
@@ -72,7 +73,7 @@ export class MinerUClient {
 
     // 4. 下载 zip 并解出 full.md
     const md = await this.downloadMarkdown(zipUrl);
-    const cachePath = await this.cacheMarkdown(name, md);
+    const cachePath = await this.cacheMarkdown(name, md, pdfPath);
 
     return {
       markdown: md,
@@ -128,10 +129,28 @@ export class MinerUClient {
     return mdEntry.getData().toString('utf-8');
   }
 
-  private async cacheMarkdown(name: string, markdown: string): Promise<string> {
-    fs.mkdirSync(this.outputDir, { recursive: true });
+  /**
+   * 缓存 Markdown。命名与目录**镜像源 PDF**：
+   *   downloads/<Author>/<Author>_<Year>_<Title>_<hash>.pdf
+   *   → fulltext/<Author>/<Author>_<Year>_<Title>_<hash>.full.md
+   * 这样同一篇论文的 PDF 与全文 Markdown 同名同结构、一一对应，便于按作者归档与清理。
+   */
+  private async cacheMarkdown(name: string, markdown: string, pdfPath?: string): Promise<string> {
     const base = name.replace(/\.pdf$/i, '');
-    const target = path.join(this.outputDir, `${base}.full.md`);
+    let target: string;
+    const downloadsRoot = path.resolve(process.env.DEFAULT_DOWNLOAD_PATH || './downloads');
+    const absPdf = pdfPath ? path.resolve(pdfPath) : null;
+
+    if (absPdf && absPdf.startsWith(downloadsRoot + path.sep) && absPdf.endsWith('.pdf')) {
+      // PDF 位于 downloads 下 → 同位镜像到 outputDir，保留作者子目录
+      const rel = path.relative(downloadsRoot, absPdf).replace(/\.pdf$/i, '.full.md');
+      target = path.join(this.outputDir, rel);
+    } else {
+      // 外部/裸 PDF → 扁平落于 outputDir，文件名取自 PDF
+      target = path.join(this.outputDir, `${base}.full.md`);
+    }
+
+    fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, markdown, 'utf-8');
     return target;
   }

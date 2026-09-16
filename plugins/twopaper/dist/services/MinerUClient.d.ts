@@ -33,6 +33,12 @@ export declare class MinerUClient {
     private requestBatch;
     private pollBatch;
     private downloadMarkdown;
+    /**
+     * 缓存 Markdown。命名与目录**镜像源 PDF**：
+     *   downloads/<Author>/<Author>_<Year>_<Title>_<hash>.pdf
+     *   → fulltext/<Author>/<Author>_<Year>_<Title>_<hash>.full.md
+     * 这样同一篇论文的 PDF 与全文 Markdown 同名同结构、一一对应，便于按作者归档与清理。
+     */
     private cacheMarkdown;
     private raiseHttp;
     /** 带 AbortController 超时的 fetch，避免网络半开时 Promise 永久挂起。 */

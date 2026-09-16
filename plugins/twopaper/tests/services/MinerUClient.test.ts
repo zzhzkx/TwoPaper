@@ -86,4 +86,31 @@ describe('MinerUClient', () => {
     const res = await new MinerUClient({ token: 'tok', outputDir: tmp, fetchImpl }).pdfToMarkdown(pdfPath);
     expect(res.markdown).toContain('String-shape');
   });
+
+  it('mirrors the downloads author-subdir layout for the cached markdown', async () => {
+    // PDF 落在 downloads/<Author>/x.pdf 时，MD 应成为 <outputDir>/<Author>/x.full.md
+    const prev = process.env.DEFAULT_DOWNLOAD_PATH;
+    const dlRoot = path.join(tmp, 'downloads');
+    const authDir = path.join(dlRoot, 'Vaswani');
+    fs.mkdirSync(authDir, { recursive: true });
+    const pdf = path.join(authDir, 'Vaswani_2017_Attention_Is_All_You_Need_db6d.pdf');
+    fs.writeFileSync(pdf, '%PDF-1.4 fake');
+    process.env.DEFAULT_DOWNLOAD_PATH = dlRoot;
+    const outDir = path.join(tmp, 'fulltext');
+    try {
+      const fetchImpl = (async (url: string, init?: any) => {
+        if (url.includes('/file-urls/batch')) return fakeResponse({ data: { batch_id: 'b3', file_urls: ['https://s3/u'] } });
+        if (init?.method === 'PUT') return fakeResponse({}, true);
+        if (url.includes('/extract-results/batch/b3')) return fakeResponse({ data: { extract_result: [{ file_name: path.basename(pdf), state: 'done', full_zip_url: 'https://cdn/f3.zip' }] } });
+        if (url.includes('f3.zip')) return fakeResponse({}, true, 200, makeZip('# mirrored'));
+        return fakeResponse({}, false, 404);
+      }) as any;
+      const res = await new MinerUClient({ token: 'tok', outputDir: outDir, fetchImpl }).pdfToMarkdown(pdf);
+      expect(res.cachePath).toBe(path.join(outDir, 'Vaswani', 'Vaswani_2017_Attention_Is_All_You_Need_db6d.full.md'));
+      expect(fs.existsSync(res.cachePath)).toBe(true);
+    } finally {
+      if (prev === undefined) delete process.env.DEFAULT_DOWNLOAD_PATH;
+      else process.env.DEFAULT_DOWNLOAD_PATH = prev;
+    }
+  });
 });

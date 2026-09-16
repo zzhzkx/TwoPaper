@@ -1,0 +1,6 @@
+TOOL: search_google_scholar
+ARGS: {"query":"transformer attention mechanism","maxResults":5}
+OK: false
+MS: 45159
+
+Error executing tool 'search_google_scholar': google_scholar search failed: conn*************************************************************************************************************************************************************************************************************************:443

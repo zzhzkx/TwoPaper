@@ -1,0 +1,6 @@
+TOOL: search_sciencedirect
+ARGS: {"query":"transformer attention mechanism","maxResults":5}
+OK: false
+MS: 962
+
+Error executing tool 'search_sciencedirect': sciencedirect: Invalid or missing API key. Please check your credentials.

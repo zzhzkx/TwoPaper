@@ -1,0 +1,6 @@
+TOOL: search_semantic_scholar
+ARGS: {"query":"transformer attention mechanism","maxResults":5}
+OK: false
+MS: 8655
+
+Error executing tool 'search_semantic_scholar': semantic: Rate limit exceeded. Please wait before making more requests.

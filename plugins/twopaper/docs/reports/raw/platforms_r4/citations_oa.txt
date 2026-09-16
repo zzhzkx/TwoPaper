@@ -1,0 +1,23 @@
+TOOL: get_citations
+ARGS: {"doi":"10.1371/journal.pone.0171226"}
+OK: true
+MS: 664
+
+Citations for 10.1371/journal.pone.0171226:
+
+{
+  "paper_id": "e2387864b7e41f3ed3d59cc7c8849ce8d147a4ff",
+  "title": "Exposure to digital marketing enhances young adults’ interest in energy drinks: An exploratory investigation",
+  "citation_count": 85,
+  "reference_count": 64,
+  "influential_citation_count": 6,
+  "year": 2017,
+  "venue": "PLoS ONE",
+  "doi": "10.1371/journal.pone.0171226",
+  "url": "https://www.semanticscholar.org/paper/e2387864b7e41f3ed3d59cc7c8849ce8d147a4ff",
+  "authors": [
+    "Limin Buchanan (119094921)",
+    "Bridget Kelly (144563911)",
+    "H. Yeatman (2678400)"
+  ]
+}

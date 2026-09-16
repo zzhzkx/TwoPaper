@@ -1,0 +1,6 @@
+TOOL: search_scihub
+ARGS: {"doiOrUrl":"10.48550/arXiv.1706.03762"}
+OK: true
+MS: 23063
+
+No paper found on Sci-Hub for: 10.48550/arXiv.1706.03762
