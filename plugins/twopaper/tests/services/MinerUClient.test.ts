@@ -63,4 +63,27 @@ describe('MinerUClient', () => {
     expect(calls.some((c2) => c2.includes('PUT'))).toBe(true);
     expect(fs.existsSync(res.cachePath)).toBe(true);
   });
+
+  it('accepts the current file_urls shape (array of URL strings)', async () => {
+    // 2026-09 实测 MinerU 返回 data.file_urls = ["<signed url>"]，而非早期的 [{url}]
+    const fetchImpl = (async (url: string, init?: any) => {
+      if (url.includes('/file-urls/batch')) {
+        return fakeResponse({ data: { batch_id: 'b2', file_urls: ['https://s3.example/upload-string'] } });
+      }
+      if (init?.method === 'PUT') {
+        expect(url).toBe('https://s3.example/upload-string'); // 取到真正的上传地址
+        return fakeResponse({}, true);
+      }
+      if (url.includes('/extract-results/batch/b2')) {
+        return fakeResponse({ data: { extract_result: [{ file_name: 'paper.pdf', state: 'done', full_zip_url: 'https://cdn/full2.zip' }] } });
+      }
+      if (url.includes('full2.zip')) {
+        return fakeResponse({}, true, 200, makeZip('# String-shape\n\nok'));
+      }
+      return fakeResponse({}, false, 404);
+    }) as any;
+
+    const res = await new MinerUClient({ token: 'tok', outputDir: tmp, fetchImpl }).pdfToMarkdown(pdfPath);
+    expect(res.markdown).toContain('String-shape');
+  });
 });

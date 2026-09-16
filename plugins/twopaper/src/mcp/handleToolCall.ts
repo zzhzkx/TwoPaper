@@ -20,14 +20,32 @@ import { TIMEOUTS } from '../config/constants.js';
 import { mapLimit } from '../utils/mapLimit.js';
 import { logDebug } from '../utils/Logger.js';
 
-const citationService = new CitationService();
-const oaSource = new OASource();
-const bridges = new BridgesClient();
-const mineru = new MinerUClient();
-const downloadThrottle = new DownloadThrottle();
-const paperNamer = new PaperNamer();
-const platformRegistry = new PlatformRegistry();
-const pdfExtractor = new PDFExtractor();
+// 这些客户端在**构造时**读取 env（MINERU_TOKEN / DOWNLOAD_PER_* / SCANSCI_CMD / MINERU_OUTPUT_DIR …）。
+// 若在模块加载期就 new，会早于 server.ts 的 loadEnv()（ES import 提升先执行被导入模块），
+// 于是读到空值并被永久缓存 —— 表现为「.env 明明配好了却报 not configured / 限流不生效」。
+// 故改为首次调用 handleToolCall 时才惰性构造，确保 loadEnv() 一定已跑完。
+let citationService!: CitationService;
+let oaSource!: OASource;
+let bridges!: BridgesClient;
+let mineru!: MinerUClient;
+let downloadThrottle!: DownloadThrottle;
+let paperNamer!: PaperNamer;
+let platformRegistry!: PlatformRegistry;
+let pdfExtractor!: PDFExtractor;
+
+let clientsReady = false;
+function initClients(): void {
+  if (clientsReady) return;
+  citationService = new CitationService();
+  oaSource = new OASource();
+  bridges = new BridgesClient();
+  mineru = new MinerUClient();
+  downloadThrottle = new DownloadThrottle();
+  paperNamer = new PaperNamer();
+  platformRegistry = new PlatformRegistry();
+  pdfExtractor = new PDFExtractor();
+  clientsReady = true;
+}
 
 /** 跨平台 DOI 查找时，单平台元数据查询的封顶时间（避免一个慢平台吃掉整次调用的预算）。 */
 const DOI_PLATFORM_TIMEOUT = 8000;
@@ -226,6 +244,7 @@ export async function handleToolCall(
 ) {
   const toolName = toolNameRaw as ToolName;
   const args = parseToolArgs(toolName, rawArgs);
+  initClients(); // 惰性构造，确保在 loadEnv() 之后才读取各客户端所需的 env
 
   switch (toolName) {
     case 'search_papers': {

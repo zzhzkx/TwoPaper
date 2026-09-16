@@ -36,6 +36,29 @@ function makeSearchers(overrides: Record<string, any> = {}) {
   } as Record<string, SearcherLike>;
 }
 
+describe('handleToolCall lazily constructs env-reading clients', () => {
+  it('sees a MINERU_TOKEN set after import (not frozen at module load)', async () => {
+    // 客户端若在模块加载期构造，会早于 loadEnv() 读 env → 永久 hasToken=false。
+    // 这里在 import 之后才设 token，惰性构造应当看得到它。
+    const saved = process.env.MINERU_TOKEN;
+    process.env.MINERU_TOKEN = 'tok-set-after-import';
+    try {
+      let err: any = null;
+      try {
+        await handleToolCall('get_fulltext', { pdfPath: '/nonexistent/x.pdf' }, makeSearchers() as any);
+      } catch (e) {
+        err = e;
+      }
+      // 走到了读文件这步（ENOENT）——说明已越过 hasToken 检查，token 确实被读到
+      expect(String(err?.message)).toMatch(/ENOENT|no such file|stat/i);
+      expect(String(err?.message)).not.toMatch(/MINERU_TOKEN not configured/i);
+    } finally {
+      if (saved === undefined) delete process.env.MINERU_TOKEN;
+      else process.env.MINERU_TOKEN = saved;
+    }
+  });
+});
+
 describe('handleToolCall savePath guard', () => {
   it('should reject a path traversal savePath in download_paper', async () => {
     const searchers = makeSearchers() as any;

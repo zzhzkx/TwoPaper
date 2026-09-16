@@ -72,7 +72,9 @@ export class MinerUClient {
         }, TIMEOUTS.EXTENDED);
         this.raiseHttp(res, 'file-urls/batch');
         const data = await res.json();
-        const fileUrl = data?.data?.file_urls?.[0]?.url;
+        // file_urls 曾为 [{url}]，现为 ["<url>"]（2026-09 实测）；两种都兼容。
+        const first = data?.data?.file_urls?.[0];
+        const fileUrl = typeof first === 'string' ? first : first?.url;
         return { batchId: data?.data?.batch_id, uploadUrl: fileUrl };
     }
     async pollBatch(batchId, name) {
