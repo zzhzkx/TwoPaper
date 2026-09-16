@@ -37,9 +37,11 @@ A Node.js Model Context Protocol (MCP) server for searching and downloading acad
 { "tool": "twopaper_setup", "arguments": { "credentials": { "WOS_API_KEY": "xxx", "OA_EMAIL": "me@example.com" } } }
 ```
 
-写入位置是**插件目录下的 `.env`**（工具会回报绝对路径），重启 Claude Code 会话后生效。也可改用宿主环境变量（`~/.claude/settings.json` 的 `env` 块），其**优先级高于 `.env`**（宿主 env 不会被文件覆盖）。
+写入位置是**插件的持久数据目录下的 `.env`**（`~/.claude/plugins/data/twopaper-twopaper-market/.env`，工具会回报绝对路径）。选这里是因为它**跨插件更新存活**——若写到版本化的安装目录（`.../cache/.../<commit>/`），下次 `plugin update` 就会随旧版本目录一起失效。写入后重启 Claude Code 会话生效。
 
-> **注意**：`.env` 按**插件目录**定位，不是当前工作目录——因此无论你在哪个项目里使用，配置都持续生效。开发态可用 `TWOPAPER_ENV_FILE` 显式指定其他路径。
+也可改用宿主环境变量（`~/.claude/settings.json` 的 `env` 块），其**优先级高于 `.env`**（宿主 env 不会被文件覆盖）。**全程不写入操作系统级环境变量。**
+
+> **定位优先级**：`TWOPAPER_ENV_FILE`（显式覆盖）→ `${CLAUDE_PLUGIN_DATA}/.env` → `${CLAUDE_PLUGIN_ROOT}/.env`（无 data 目录时回退）。`.env` 按插件自身定位，**不是**当前工作目录——因此无论你在哪个项目里使用，配置都持续生效。
 
 ## ✨ Key Features
 
