@@ -29,6 +29,18 @@ A Node.js Model Context Protocol (MCP) server for searching and downloading acad
 
 新增 env（`.env.example`）：`MINERU_TOKEN`、`MINERU_OUTPUT_DIR`、`OA_EMAIL`、`OPENALEX_API_KEY`、`DOWNLOAD_PER_MINUTE/HOUR/DAY`、`GET_PDF_BRIDGE`、`SCANSCI_CMD`。
 
+## 🔑 配置凭证
+
+**推荐做法：让 Agent 引导配置。** 装上插件后直接说「配置 TwoPaper 凭证」，或让 Agent 调 `twopaper_setup`（不带参数）——它会列出每项凭证缺什么、解锁什么能力、去哪申请，然后把值传回即可写入：
+
+```json
+{ "tool": "twopaper_setup", "arguments": { "credentials": { "WOS_API_KEY": "xxx", "OA_EMAIL": "me@example.com" } } }
+```
+
+写入位置是**插件目录下的 `.env`**（工具会回报绝对路径），重启 Claude Code 会话后生效。也可改用宿主环境变量（`~/.claude/settings.json` 的 `env` 块），其**优先级高于 `.env`**（宿主 env 不会被文件覆盖）。
+
+> **注意**：`.env` 按**插件目录**定位，不是当前工作目录——因此无论你在哪个项目里使用，配置都持续生效。开发态可用 `TWOPAPER_ENV_FILE` 显式指定其他路径。
+
 ## ✨ Key Features
 
 - **🌍 14 Academic Platforms**: arXiv, Web of Science, PubMed, Google Scholar, bioRxiv, medRxiv, Semantic Scholar, IACR ePrint, Sci-Hub, ScienceDirect, Springer Nature, Wiley, Scopus, Crossref

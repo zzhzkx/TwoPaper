@@ -5,14 +5,15 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { ListToolsRequestSchema, CallToolRequestSchema, InitializeRequestSchema, PingRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import * as dotenv from 'dotenv';
 import { TOOLS } from './mcp/tools.js';
 import { initializeSearchers } from './mcp/searchers.js';
 import { handleToolCall } from './mcp/handleToolCall.js';
 import { withTimeout } from './utils/SecurityUtils.js';
 import { TIMEOUTS } from './config/constants.js';
 import { isMCPMode, logDebug } from './utils/Logger.js';
-dotenv.config();
+import { loadEnv } from './utils/env.js';
+// 显式定位插件目录下的 .env（裸 dotenv.config() 会按宿主 cwd 查找，永远读不到插件自己的 .env）
+loadEnv();
 const server = new Server({
     name: 'twopaper',
     version: '0.1.0'

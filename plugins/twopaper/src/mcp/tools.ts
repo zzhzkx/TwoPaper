@@ -563,5 +563,21 @@ export const TOOLS: Tool[] = [
       type: 'object',
       properties: {}
     }
+  },
+  {
+    name: 'twopaper_setup',
+    description:
+      'Configure API credentials for TwoPaper. Call with no arguments to get the checklist of credentials, what each unlocks, and where to obtain it. Call with a `credentials` object to persist values into the plugin .env (written to the plugin directory, so it survives across sessions). Values are never echoed back. Requires a session restart for the host to inject them into the MCP process unless the same session re-reads them.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        credentials: {
+          type: 'object',
+          description:
+            'Map of env var name to value, e.g. {"WOS_API_KEY": "...", "OA_EMAIL": "me@example.com"}. Only documented TwoPaper keys are accepted; unknown keys are ignored.',
+          additionalProperties: { type: 'string' }
+        }
+      }
+    }
   }
 ];

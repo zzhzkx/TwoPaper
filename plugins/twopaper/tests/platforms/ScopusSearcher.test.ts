@@ -23,8 +23,17 @@ describe('ScopusSearcher', () => {
 
   describe('constructor', () => {
     it('should require API key', async () => {
-      const noKeySearcher = new ScopusSearcher();
-      await expect(noKeySearcher.search('test')).rejects.toThrow();
+      // 构造函数在未传参时回退读 process.env.ELSEVIER_API_KEY。
+      // 若开发机/CI 恰好配了该 key，这个用例会发起真实网络请求并成功，
+      // 使"无 key 应当报错"的断言失效。故显式清空，保证用例自洽、不发网络。
+      const saved = process.env.ELSEVIER_API_KEY;
+      delete process.env.ELSEVIER_API_KEY;
+      try {
+        const noKeySearcher = new ScopusSearcher();
+        await expect(noKeySearcher.search('test')).rejects.toThrow();
+      } finally {
+        if (saved !== undefined) process.env.ELSEVIER_API_KEY = saved;
+      }
     });
   });
 

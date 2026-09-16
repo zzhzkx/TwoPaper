@@ -1,0 +1,687 @@
+{
+  "meta": {
+    "generatedAt": "2026-09-15T07:08:22.557Z",
+    "pluginRoot": "F:\\claude_project\\TwoPaper\\plugins\\twopaper",
+    "runs": 3,
+    "gapMs": 1000,
+    "phase": "all",
+    "node": "v24.18.0",
+    "platform": "win32",
+    "bootstrap": {
+      "samples": [
+        893,
+        816,
+        823
+      ],
+      "min": 816,
+      "median": 823,
+      "max": 893
+    }
+  },
+  "results": [
+    {
+      "id": "crossref",
+      "tool": "search_crossref",
+      "group": "search",
+      "args": {
+        "query": "transformer attention mechanism",
+        "maxResults": 5
+      },
+      "runs": 3,
+      "success": 3,
+      "ms": {
+        "min": 3562,
+        "median": 3774,
+        "max": 4359,
+        "mean": 3898,
+        "all": [
+          4359,
+          3774,
+          3562
+        ]
+      },
+      "counts": [
+        5,
+        5,
+        5
+      ],
+      "categories": [
+        "ok",
+        "ok",
+        "ok"
+      ],
+      "sampleText": "Found 5 Crossref papers.\n\n[\n  {\n    \"paper_id\": \"10.7717/peerj-cs.3829/fig-3\",\n    \"title\": \"Figure 3: Schematic of Swin Transformer self-attention mechanism.\",\n    \"authors\": \"\",\n    \"abstract\": \"\",\n    \"doi\": \"10.7717/peerj-cs.3829/fig-3\",\n    \"published_date\": \"2026-05-25T16:00:00.000Z\",\n    \"pdf_url\": \"\",\n    \"url\": \"https://doi.org/10.7717/peerj-cs.3829/fig-3\",\n    \"source\": \"crossref\",\n    \"updated_date\": \"\",\n    \"categories\": \"\",\n    \"keywords\": \"\",\n    \"citation_count\": 0,\n    \"references\": \"\",\n    \"journal\": \"\",\n    \"volume\": \"\",\n    \"issue\": \"\",\n    \"pages\": \"\",\n    \"year\": 2026,\n   "
+    },
+    {
+      "id": "arxiv",
+      "tool": "search_arxiv",
+      "group": "search",
+      "args": {
+        "query": "transformer attention mechanism",
+        "maxResults": 5
+      },
+      "runs": 3,
+      "success": 0,
+      "ms": {
+        "min": null,
+        "median": null,
+        "max": null,
+        "mean": null,
+        "all": []
+      },
+      "counts": [
+        null,
+        null,
+        null
+      ],
+      "categories": [
+        "rate_limited",
+        "timeout",
+        "timeout"
+      ],
+      "sampleText": "Error executing tool 'search_arxiv': arxiv: Rate limit exceeded. Please wait before making more requests."
+    },
+    {
+      "id": "pubmed",
+      "tool": "search_pubmed",
+      "group": "search",
+      "args": {
+        "query": "CRISPR gene editing",
+        "maxResults": 5
+      },
+      "runs": 3,
+      "success": 3,
+      "ms": {
+        "min": 2502,
+        "median": 2934,
+        "max": 5180,
+        "mean": 3539,
+        "all": [
+          5180,
+          2502,
+          2934
+        ]
+      },
+      "counts": [
+        5,
+        5,
+        5
+      ],
+      "categories": [
+        "ok",
+        "ok",
+        "ok"
+      ],
+      "sampleText": "Found 5 PubMed papers.\n\nAPI Status: configured (10 requests/second)\nRate Limiter: 10/10 tokens available\n\n[\n  {\n    \"paper_id\": \"38786024\",\n    \"title\": \"CRISPR-Based Gene Therapies: From Preclinical to Clinical Treatments.\",\n    \"authors\": \"Laurent, Marine; Geoffroy, Marine; Pavani, Giulia; Guiraud, Simon\",\n    \"abstract\": \"In recent years, clustered regularly interspaced short palindromic repeats (CRISPRs) and CRISPR-associated (Cas) protein have emerged as a revolutionary gene editing tool to treat inherited disorders affecting different organ systems, such as blood and muscles. Both hemato"
+    },
+    {
+      "id": "biorxiv",
+      "tool": "search_biorxiv",
+      "group": "search",
+      "args": {
+        "query": "CRISPR gene editing",
+        "maxResults": 5,
+        "days": 3650
+      },
+      "runs": 3,
+      "success": 0,
+      "ms": {
+        "min": null,
+        "median": null,
+        "max": null,
+        "mean": null,
+        "all": []
+      },
+      "counts": [
+        null,
+        null,
+        null
+      ],
+      "categories": [
+        "other_error",
+        "other_error",
+        "other_error"
+      ],
+      "sampleText": "Error executing tool 'search_biorxiv': biorxiv search failed: bior****************************************************************ages"
+    },
+    {
+      "id": "medrxiv",
+      "tool": "search_medrxiv",
+      "group": "search",
+      "args": {
+        "query": "CRISPR gene editing",
+        "maxResults": 5,
+        "days": 3650
+      },
+      "runs": 3,
+      "success": 3,
+      "ms": {
+        "min": 13922,
+        "median": 13923,
+        "max": 15547,
+        "mean": 14464,
+        "all": [
+          15547,
+          13922,
+          13923
+        ]
+      },
+      "counts": [
+        0,
+        0,
+        0
+      ],
+      "categories": [
+        "ok",
+        "ok",
+        "ok"
+      ],
+      "sampleText": "Found 0 medRxiv papers.\n\n[]"
+    },
+    {
+      "id": "semantic",
+      "tool": "search_semantic_scholar",
+      "group": "search",
+      "args": {
+        "query": "transformer attention mechanism",
+        "maxResults": 5
+      },
+      "runs": 3,
+      "success": 0,
+      "ms": {
+        "min": null,
+        "median": null,
+        "max": null,
+        "mean": null,
+        "all": []
+      },
+      "counts": [
+        null,
+        null,
+        null
+      ],
+      "categories": [
+        "rate_limited",
+        "rate_limited",
+        "rate_limited"
+      ],
+      "sampleText": "Error executing tool 'search_semantic_scholar': semantic: Rate limit exceeded. Please wait before making more requests."
+    },
+    {
+      "id": "iacr",
+      "tool": "search_iacr",
+      "group": "search",
+      "args": {
+        "query": "lattice based cryptography",
+        "maxResults": 5
+      },
+      "runs": 3,
+      "success": 3,
+      "ms": {
+        "min": 2475,
+        "median": 2491,
+        "max": 3049,
+        "mean": 2672,
+        "all": [
+          3049,
+          2491,
+          2475
+        ]
+      },
+      "counts": [
+        5,
+        5,
+        5
+      ],
+      "categories": [
+        "ok",
+        "ok",
+        "ok"
+      ],
+      "sampleText": "Found 5 IACR ePrint papers.\n\n[\n  {\n    \"paper_id\": \"2026/1991\",\n    \"title\": \"Towards Practical Iterative Rejection Sampling: A Compact and Efficient Signature over Module Lattices\",\n    \"authors\": \"Yifan Ming; Jipeng Zhang; Zihan Liu; Guofeng Tang; Pengfei Chen; Yutao Sun; Si Gao; Cong Zhang; Long Chen\",\n    \"abstract\": \"Lattice signatures face a strict trade-off among compactness, implementation simplicity, and reliance on standard lattice assumptions: ML-DSA-44 requires a 2420-byte signature (3732 bytes combined) and HAETAE-120 takes 1474 bytes (2466 bytes combined), while Falcon-512 achiev"
+    },
+    {
+      "id": "oa_pdf",
+      "tool": "get_oa_pdf",
+      "group": "pdf",
+      "args": {
+        "doi": "10.1371/journal.pone.0171226"
+      },
+      "runs": 3,
+      "success": 3,
+      "ms": {
+        "min": 4438,
+        "median": 4754,
+        "max": 7207,
+        "mean": 5466,
+        "all": [
+          4754,
+          4438,
+          7207
+        ]
+      },
+      "counts": [
+        null,
+        null,
+        null
+      ],
+      "categories": [
+        "ok",
+        "ok",
+        "ok"
+      ],
+      "sampleText": "OA PDF found:\n\n{\n  \"url\": \"https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0171226&type=printable\",\n  \"source\": \"unpaywall\",\n  \"license\": \"cc-by\",\n  \"version\": \"publishedVersion\"\n}"
+    },
+    {
+      "id": "webofscience",
+      "tool": "search_webofscience",
+      "group": "search",
+      "args": {
+        "query": "transformer attention mechanism",
+        "maxResults": 5
+      },
+      "runs": 3,
+      "success": 3,
+      "ms": {
+        "min": 1829,
+        "median": 1951,
+        "max": 3412,
+        "mean": 2397,
+        "all": [
+          3412,
+          1951,
+          1829
+        ]
+      },
+      "counts": [
+        5,
+        5,
+        5
+      ],
+      "categories": [
+        "ok",
+        "ok",
+        "ok"
+      ],
+      "sampleText": "Found 5 Web of Science papers.\n\n[\n  {\n    \"paper_id\": \"WOS:A1992JT19500121\",\n    \"title\": \"PERFORMANCE OF NEW MATERIALS IN TRANSFORMER CORES\",\n    \"authors\": \"PFUTZNER, H\",\n    \"abstract\": \"\",\n    \"doi\": \"10.1016/0304-8853(92)91213-D\",\n    \"published_date\": \"1991-12-31T16:00:00.000Z\",\n    \"pdf_url\": \"\",\n    \"url\": \"https://www.webofscience.com/wos/woscc/full-record/WOS:A1992JT19500121\",\n    \"source\": \"webofscience\",\n    \"updated_date\": \"\",\n    \"categories\": \"Article\",\n    \"keywords\": \"\",\n    \"citation_count\": 6,\n    \"references\": \"\",\n    \"journal\": \"JOURNAL OF MAGNETISM AND MAGNETIC MATERIALS\""
+    },
+    {
+      "id": "scopus",
+      "tool": "search_scopus",
+      "group": "search",
+      "args": {
+        "query": "transformer attention mechanism",
+        "maxResults": 5
+      },
+      "runs": 3,
+      "success": 3,
+      "ms": {
+        "min": 2164,
+        "median": 2957,
+        "max": 3511,
+        "mean": 2877,
+        "all": [
+          3511,
+          2957,
+          2164
+        ]
+      },
+      "counts": [
+        5,
+        5,
+        5
+      ],
+      "categories": [
+        "ok",
+        "ok",
+        "ok"
+      ],
+      "sampleText": "Found 5 Scopus papers.\n\n[\n  {\n    \"paper_id\": \"2-s2.0-105048854767\",\n    \"title\": \"Structured-DGA transformer for power transformer fault diagnosis under missing-gas setting\",\n    \"authors\": \"Xi S.\",\n    \"abstract\": \"\",\n    \"doi\": \"10.1016/j.epsr.2026.114017\",\n    \"published_date\": \"2027-04-01T00:00:00.000Z\",\n    \"pdf_url\": \"\",\n    \"url\": \"https://api.elsevier.com/content/abstract/scopus_id/105048854767\",\n    \"source\": \"scopus\",\n    \"updated_date\": \"\",\n    \"categories\": \"\",\n    \"keywords\": \"\",\n    \"citation_count\": 0,\n    \"references\": \"\",\n    \"journal\": \"Electric Power Systems Research\",\n    "
+    },
+    {
+      "id": "sciencedirect",
+      "tool": "search_sciencedirect",
+      "group": "search",
+      "args": {
+        "query": "transformer attention mechanism",
+        "maxResults": 5
+      },
+      "runs": 3,
+      "success": 0,
+      "ms": {
+        "min": null,
+        "median": null,
+        "max": null,
+        "mean": null,
+        "all": []
+      },
+      "counts": [
+        null,
+        null,
+        null
+      ],
+      "categories": [
+        "unconfigured",
+        "unconfigured",
+        "unconfigured"
+      ],
+      "sampleText": "Error executing tool 'search_sciencedirect': sciencedirect: Invalid or missing API key. Please check your credentials."
+    },
+    {
+      "id": "springer",
+      "tool": "search_springer",
+      "group": "search",
+      "args": {
+        "query": "transformer attention mechanism",
+        "maxResults": 5
+      },
+      "runs": 3,
+      "success": 3,
+      "ms": {
+        "min": 2848,
+        "median": 3296,
+        "max": 3691,
+        "mean": 3278,
+        "all": [
+          3296,
+          2848,
+          3691
+        ]
+      },
+      "counts": [
+        5,
+        5,
+        5
+      ],
+      "categories": [
+        "ok",
+        "ok",
+        "ok"
+      ],
+      "sampleText": "Found 5 Springer papers.\n\n[\n  {\n    \"paper_id\": \"10.1007/978-3-032-31998-2_31\",\n    \"title\": \"Hybrid Deep Learning Framework for Lung Disease Detection Using CT and X-ray Images\",\n    \"authors\": \"Pugazhendhi; M. Arul; Hemanth; S.; Muritala; Ismaila; Kumar; T. Ananth; Ajiboye; Grace O.; Balogun; Rukayat; Ajagbe; Sunday A.\",\n    \"abstract\": \"The lung diseases including pneumonia, tuberculosis, COVID-19 and lung cancer have a significant effect on the respiratory system, as they reduce the efficiency of breathing, as well as interfere with the oxygen exchange. The symptoms that are usually presen"
+    },
+    {
+      "id": "googlescholar",
+      "tool": "search_google_scholar",
+      "group": "search",
+      "args": {
+        "query": "transformer attention mechanism",
+        "maxResults": 5
+      },
+      "runs": 3,
+      "success": 0,
+      "ms": {
+        "min": null,
+        "median": null,
+        "max": null,
+        "mean": null,
+        "all": []
+      },
+      "counts": [
+        null,
+        null,
+        null
+      ],
+      "categories": [
+        "other_error",
+        "other_error",
+        "other_error"
+      ],
+      "sampleText": "Error executing tool 'search_google_scholar': google_scholar search failed: conn****************************:443"
+    },
+    {
+      "id": "scihub_mirrors",
+      "tool": "check_scihub_mirrors",
+      "group": "search",
+      "args": {},
+      "runs": 3,
+      "success": 3,
+      "ms": {
+        "min": 717,
+        "median": 747,
+        "max": 790,
+        "mean": 751,
+        "all": [
+          790,
+          717,
+          747
+        ]
+      },
+      "counts": [
+        null,
+        null,
+        null
+      ],
+      "categories": [
+        "ok",
+        "ok",
+        "ok"
+      ],
+      "sampleText": "Sci-Hub Mirror Status:\n\n[\n  {\n    \"url\": \"https://sci-hub.se\",\n    \"status\": \"Working\"\n  },\n  {\n    \"url\": \"https://sci-hub.st\",\n    \"status\": \"Working\"\n  },\n  {\n    \"url\": \"https://sci-hub.ru\",\n    \"status\": \"Working\"\n  },\n  {\n    \"url\": \"https://sci-hub.ren\",\n    \"status\": \"Working\"\n  },\n  {\n    \"url\": \"https://sci-hub.mksa.top\",\n    \"status\": \"Working\"\n  },\n  {\n    \"url\": \"https://sci-hub.ee\",\n    \"status\": \"Working\"\n  },\n  {\n    \"url\": \"https://sci-hub.wf\",\n    \"status\": \"Working\"\n  },\n  {\n    \"url\": \"https://sci-hub.yt\",\n    \"status\": \"Working\"\n  },\n  {\n    \"url\": \"https://sci-hub.sci-hub"
+    },
+    {
+      "id": "scihub",
+      "tool": "search_scihub",
+      "group": "search",
+      "args": {
+        "doiOrUrl": "10.48550/arXiv.1706.03762"
+      },
+      "runs": 3,
+      "success": 3,
+      "ms": {
+        "min": 18495,
+        "median": 18812,
+        "max": 31206,
+        "mean": 22838,
+        "all": [
+          31206,
+          18495,
+          18812
+        ]
+      },
+      "counts": [
+        null,
+        null,
+        null
+      ],
+      "categories": [
+        "ok",
+        "ok",
+        "ok"
+      ],
+      "sampleText": "No paper found on Sci-Hub for: 10.48550/arXiv.1706.03762"
+    },
+    {
+      "id": "doi_arxiv",
+      "tool": "get_paper_by_doi",
+      "group": "search",
+      "args": {
+        "doi": "10.48550/arXiv.1706.03762"
+      },
+      "runs": 3,
+      "success": 3,
+      "ms": {
+        "min": 8780,
+        "median": 11103,
+        "max": 11352,
+        "mean": 10412,
+        "all": [
+          11352,
+          11103,
+          8780
+        ]
+      },
+      "counts": [
+        2,
+        2,
+        2
+      ],
+      "categories": [
+        "ok",
+        "ok",
+        "ok"
+      ],
+      "sampleText": "Found 2 paper(s) with DOI 10.48550/arXiv.1706.03762:\n\n[\n  {\n    \"paper_id\": \"10.1007/978-3-032-31998-2_4\",\n    \"title\": \"Generative AI Driven Protein-Ligand Docking with a Quantum Enhanced Framework Inte-grating VAE and Transformer Models\",\n    \"authors\": \"Bhagchandani; Niraj Dineshkumar; Singh; Sanjay Kumar; Misra; Rajiv\",\n    \"abstract\": \"This translation retains the original meaning of the sentence, so that the problems and trends that it illustrates can be understood frivolously. Bear in mind that we know how to solve them, refrain from recasting any more complex sentences into a difficult"
+    },
+    {
+      "id": "citations",
+      "tool": "get_citations",
+      "group": "search",
+      "args": {
+        "doi": "10.48550/arXiv.1706.03762"
+      },
+      "runs": 3,
+      "success": 3,
+      "ms": {
+        "min": 1318,
+        "median": 1368,
+        "max": 3568,
+        "mean": 2085,
+        "all": [
+          1318,
+          1368,
+          3568
+        ]
+      },
+      "counts": [
+        null,
+        null,
+        null
+      ],
+      "categories": [
+        "ok",
+        "ok",
+        "ok"
+      ],
+      "sampleText": "No citation data found for DOI: 10.48550/arXiv.1706.03762"
+    },
+    {
+      "id": "aggregate_all",
+      "tool": "search_papers",
+      "group": "search",
+      "args": {
+        "query": "transformer attention mechanism",
+        "platform": "all",
+        "maxResults": 10
+      },
+      "runs": 3,
+      "success": 3,
+      "ms": {
+        "min": 18681,
+        "median": 30709,
+        "max": 30783,
+        "mean": 26724,
+        "all": [
+          30709,
+          18681,
+          30783
+        ]
+      },
+      "counts": [
+        10,
+        10,
+        10
+      ],
+      "categories": [
+        "ok",
+        "ok",
+        "ok"
+      ],
+      "sampleText": "Found 10 papers.\n\n{\n  \"count\": 10,\n  \"sources_hit\": [\n    \"arxiv\",\n    \"pubmed\",\n    \"iacr\",\n    \"springer\",\n    \"scopus\"\n  ],\n  \"failures\": [\n    {\n      \"platform\": \"webofscience\",\n      \"error\": \"webofscience search failed (400: Bad Request - Invalid parameters or syntax): Ba*******st\"\n    },\n    {\n      \"platform\": \"biorxiv\",\n      \"error\": \"biorxiv search failed: bior****************************************************************ages\"\n    },\n    {\n      \"platform\": \"medrxiv\",\n      \"error\": \"medrxiv search timed out\"\n    },\n    {\n      \"platform\": \"semantic\",\n      \"error\": \"semantic: Ra"
+    },
+    {
+      "id": "pdf_arxiv",
+      "tool": "get_pdf",
+      "group": "pdf",
+      "args": {
+        "doi": "10.48550/arXiv.1706.03762"
+      },
+      "runs": 3,
+      "success": 3,
+      "ms": {
+        "min": 12393,
+        "median": 13451,
+        "max": 23983,
+        "mean": 16609,
+        "all": [
+          12393,
+          23983,
+          13451
+        ]
+      },
+      "counts": [
+        null,
+        null,
+        null
+      ],
+      "categories": [
+        "ok",
+        "ok",
+        "ok"
+      ],
+      "sampleText": "No legal OA / platform PDF. Host should call the scansci bridge:\n\n{\n  \"action\": \"bridged_download\",\n  \"target\": \"scansci\",\n  \"tool\": \"scansci_pdf_download\",\n  \"identifier\": \"10.48550/arXiv.1706.03762\",\n  \"reason\": \"paywalled (no legal OA / platform PDF available)\"\n}"
+    },
+    {
+      "id": "platform_status",
+      "tool": "get_platform_status",
+      "group": "status",
+      "args": {
+        "validate": false
+      },
+      "runs": 3,
+      "success": 3,
+      "ms": {
+        "min": 701,
+        "median": 702,
+        "max": 803,
+        "mean": 735,
+        "all": [
+          702,
+          803,
+          701
+        ]
+      },
+      "counts": [
+        null,
+        null,
+        null
+      ],
+      "categories": [
+        "ok",
+        "ok",
+        "ok"
+      ],
+      "sampleText": "Platform Status:\n\n{\n  \"channels\": [\n    {\n      \"platform\": \"arxiv\",\n      \"status\": \"OK\",\n      \"configured\": true,\n      \"ability\": {\n        \"search\": true,\n        \"download\": true,\n        \"fulltext\": true\n      },\n      \"setup_hint\": \"Free, no key needed\"\n    },\n    {\n      \"platform\": \"webofscience\",\n      \"status\": \"OK\",\n      \"configured\": true,\n      \"ability\": {\n        \"search\": true,\n        \"download\": false,\n        \"fulltext\": false\n      },\n      \"setup_hint\": \"https://developer.clarivate.com/apis\",\n      \"key_env\": \"WOS_API_KEY\"\n    },\n    {\n      \"platform\": \"pubmed\",\n      "
+    },
+    {
+      "id": "scansci_status",
+      "tool": "get_scansci_status",
+      "group": "status",
+      "args": {},
+      "runs": 3,
+      "success": 3,
+      "ms": {
+        "min": 695,
+        "median": 716,
+        "max": 725,
+        "mean": 712,
+        "all": [
+          695,
+          725,
+          716
+        ]
+      },
+      "counts": [
+        null,
+        null,
+        null
+      ],
+      "categories": [
+        "ok",
+        "ok",
+        "ok"
+      ],
+      "sampleText": "scansci bridge status:\n\n{\n  \"mode\": \"hint\",\n  \"configured\": true,\n  \"cliReachable\": false,\n  \"note\": \"Host will orchestrate scansci_pdf MCP\"\n}"
+    }
+  ]
+}

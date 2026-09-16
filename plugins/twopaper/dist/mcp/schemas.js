@@ -242,6 +242,11 @@ export const GetFulltextSchema = z
 export const GetScansciStatusSchema = z
     .object({})
     .strip();
+export const TwoPaperSetupSchema = z
+    .object({
+    credentials: z.record(z.string(), z.string()).optional()
+})
+    .strip();
 export function parseToolArgs(toolName, args) {
     switch (toolName) {
         case 'search_papers':
@@ -290,6 +295,8 @@ export function parseToolArgs(toolName, args) {
             return GetFulltextSchema.parse(args);
         case 'get_scansci_status':
             return GetScansciStatusSchema.parse(args ?? {});
+        case 'twopaper_setup':
+            return TwoPaperSetupSchema.parse(args ?? {});
         default:
             return args;
     }

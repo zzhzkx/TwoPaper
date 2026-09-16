@@ -267,6 +267,12 @@ export const GetScansciStatusSchema = z
   .object({})
   .strip();
 
+export const TwoPaperSetupSchema = z
+  .object({
+    credentials: z.record(z.string(), z.string()).optional()
+  })
+  .strip();
+
 export type ToolName =
   | 'search_papers'
   | 'search_arxiv'
@@ -290,7 +296,8 @@ export type ToolName =
   | 'get_oa_pdf'
   | 'get_pdf'
   | 'get_fulltext'
-  | 'get_scansci_status';
+  | 'get_scansci_status'
+  | 'twopaper_setup';
 
 export function parseToolArgs(toolName: ToolName, args: unknown): any {
   switch (toolName) {
@@ -340,6 +347,8 @@ export function parseToolArgs(toolName: ToolName, args: unknown): any {
       return GetFulltextSchema.parse(args);
     case 'get_scansci_status':
       return GetScansciStatusSchema.parse(args ?? {});
+    case 'twopaper_setup':
+      return TwoPaperSetupSchema.parse(args ?? {});
     default:
       return args;
   }

@@ -13,7 +13,7 @@ import { MinerUClient } from '../services/MinerUClient.js';
 import { DownloadThrottle, DownloadLimitError } from '../services/DownloadThrottle.js';
 import { PaperNamer } from '../services/PaperNamer.js';
 import { PlatformRegistry } from '../services/PlatformRegistry.js';
-import { missingCredentials } from '../services/config/credentials.js';
+import { collectCredentials, missingCredentials, writeCredentials, WRITABLE_ENV_KEYS } from '../services/config/credentials.js';
 import { PDFExtractor } from '../utils/PDFExtractor.js';
 import { sanitizeDownloadPath, sanitizeDoi, withTimeout } from '../utils/SecurityUtils.js';
 import { TIMEOUTS } from '../config/constants.js';
@@ -787,6 +787,65 @@ export async function handleToolCall(
       };
 
       return jsonTextResponse(`Platform Status:\n\n${JSON.stringify({ ...report, ...scihubInfo }, null, 2)}`);
+    }
+
+    case 'twopaper_setup': {
+      const provided = args.credentials as Record<string, string> | undefined;
+
+      // 无参数：返回引导清单（含申请地址），供宿主 Agent 提示用户
+      if (!provided || Object.keys(provided).length === 0) {
+        const entries = collectCredentials();
+        const missingRequired = entries.filter((e) => e.required && !e.configured);
+
+        const checklist = entries.map((e) => ({
+          env: e.env,
+          platform: e.platform,
+          required: e.required,
+          configured: e.configured,
+          unlocks: e.unlocks,
+          signup: e.signup
+        }));
+
+        const guidance = [
+          'TwoPaper 凭证配置',
+          '',
+          `已配置 ${entries.filter((e) => e.configured).length}/${entries.length} 项。` +
+            (missingRequired.length
+              ? `仍缺 ${missingRequired.length} 项必需凭证：${missingRequired.map((e) => e.env).join(', ')}`
+              : '必需凭证已齐备。'),
+          '',
+          '把值传回本工具的 credentials 参数即可写入插件 .env，例如：',
+          '  twopaper_setup({ credentials: { "WOS_API_KEY": "xxx", "OA_EMAIL": "me@x.com" } })',
+          '',
+          '写入后需重启 Claude Code 会话，宿主才会把新值注入 MCP 进程。',
+          '想改用宿主级配置（~/.claude/settings.json 的 env 块）亦可，其优先级高于 .env。',
+          '',
+          JSON.stringify(checklist, null, 2)
+        ].join('\n');
+
+        return jsonTextResponse(guidance);
+      }
+
+      // 带参数：写入 .env
+      const { written, envPath } = writeCredentials(provided);
+      const ignored = Object.keys(provided).filter((k) => !WRITABLE_ENV_KEYS.has(k));
+
+      const lines = [
+        written.length
+          ? `已写入 ${written.length} 项凭证：${written.join(', ')}`
+          : '未写入任何凭证。',
+        `位置：${envPath}`
+      ];
+      if (ignored.length) {
+        lines.push(`已忽略（不在白名单内）：${ignored.join(', ')}`);
+      }
+      if (written.length) {
+        lines.push('');
+        lines.push('重启 Claude Code 会话后生效（宿主需重新注入 MCP 进程 env）。');
+        lines.push('可用 get_platform_status 复查各渠道状态。');
+      }
+
+      return jsonTextResponse(lines.join('\n'));
     }
 
     default:

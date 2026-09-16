@@ -439,6 +439,13 @@ export declare const GetFulltextSchema: z.ZodEffects<z.ZodObject<{
     maxPages?: number | undefined;
 }>;
 export declare const GetScansciStatusSchema: z.ZodObject<{}, "strip", z.ZodTypeAny, {}, {}>;
-export type ToolName = 'search_papers' | 'search_arxiv' | 'search_webofscience' | 'search_pubmed' | 'search_biorxiv' | 'search_medrxiv' | 'search_semantic_scholar' | 'search_iacr' | 'download_paper' | 'search_google_scholar' | 'get_paper_by_doi' | 'search_scihub' | 'check_scihub_mirrors' | 'get_platform_status' | 'search_sciencedirect' | 'search_springer' | 'search_scopus' | 'search_crossref' | 'get_citations' | 'get_oa_pdf' | 'get_pdf' | 'get_fulltext' | 'get_scansci_status';
+export declare const TwoPaperSetupSchema: z.ZodObject<{
+    credentials: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
+}, "strip", z.ZodTypeAny, {
+    credentials?: Record<string, string> | undefined;
+}, {
+    credentials?: Record<string, string> | undefined;
+}>;
+export type ToolName = 'search_papers' | 'search_arxiv' | 'search_webofscience' | 'search_pubmed' | 'search_biorxiv' | 'search_medrxiv' | 'search_semantic_scholar' | 'search_iacr' | 'download_paper' | 'search_google_scholar' | 'get_paper_by_doi' | 'search_scihub' | 'check_scihub_mirrors' | 'get_platform_status' | 'search_sciencedirect' | 'search_springer' | 'search_scopus' | 'search_crossref' | 'get_citations' | 'get_oa_pdf' | 'get_pdf' | 'get_fulltext' | 'get_scansci_status' | 'twopaper_setup';
 export declare function parseToolArgs(toolName: ToolName, args: unknown): any;
 //# sourceMappingURL=schemas.d.ts.map

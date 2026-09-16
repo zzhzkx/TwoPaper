@@ -5,7 +5,7 @@ description: TwoPaper 学术文献一站式总入口。用户要检索论文、�
 
 # TwoPaper 学术文献工作流（总入口）
 
-TwoPaper 通过本机 MCP server `twopaper` 提供 23 个工具，覆盖 **检索 → 拿 PDF → 读全文 → 查引用** 全链路。
+TwoPaper 通过本机 MCP server `twopaper` 提供 24 个工具，覆盖 **配置 → 检索 → 拿 PDF → 读全文 → 查引用** 全链路。
 
 ## 分工边界（重要）
 
@@ -22,6 +22,24 @@ TwoPaper 通过本机 MCP server `twopaper` 提供 23 个工具，覆盖 **检�
 ```
 
 它返回每个渠道的四态（`UNCONFIGURED` / `OK` / `NEED_LOGIN` / `DEGRADED`）、缺失的 env（`missing_credentials`）、下载限流余量、scansci 桥接状态。**先看它再决定走哪条路**，能避免在没配 key 的渠道上白等。
+
+## 首次使用：配置凭证
+
+若 `get_platform_status` 显示多個渠道 `UNCONFIGURED`，或 `missing_credentials` 非空，**先引导用户配置**，再谈检索：
+
+1. 调 `twopaper_setup`（**不带参数**）→ 返回凭证清单：每项缺什么、解锁什么能力、去哪申请（含申请地址）。
+2. 把清单摘要给用户，**问他们要哪些 key**。不要替用户编造或猜测 key。
+3. 用户给值后，调 `twopaper_setup({ credentials: { "WOS_API_KEY": "...", "OA_EMAIL": "..." } })` 写入。
+4. 告知用户：**需重启 Claude Code 会话**，宿主才会把新值注入 MCP 进程。
+5. 重启后调 `get_platform_status` 复查。
+
+```json
+{ "tool": "twopaper_setup", "arguments": {} }
+```
+
+写入位置是**插件目录下的 `.env`**（`twopaper_setup` 会回报绝对路径）。也可改用宿主级配置（`~/.claude/settings.json` 的 `env` 块），其**优先级高于 `.env`**。
+
+**凭证取值原则**：只按用户提供的值写入，绝不从其他来源推断或填充；`twopaper_setup` 从不回显具体值，只回报键名。
 
 ## 已知渠道限制（避免白等）
 
@@ -57,10 +75,11 @@ TwoPaper 通过本机 MCP server `twopaper` 提供 23 个工具，覆盖 **检�
 
 **横跨多组时依次进入对应子技能即可。** 最后交付的分析里必须给出处（DOI / 来源库）。
 
-## 工具全集（23 个，按功能分组）
+## 工具全集（24 个，按功能分组）
 
 | 组 | 工具 |
 |---|---|
+| **配置** | `twopaper_setup` |
 | **聚合与元数据** | `search_papers`、`get_paper_by_doi`、`get_platform_status` |
 | **单平台检索（13）** | `search_arxiv`、`search_webofscience`、`search_pubmed`、`search_biorxiv`、`search_medrxiv`、`search_semantic_scholar`、`search_iacr`、`search_google_scholar`、`search_sciencedirect`、`search_springer`、`search_scopus`、`search_crossref`、`search_scihub` |
 | **PDF 获取** | `get_pdf`、`get_oa_pdf`、`download_paper`、`check_scihub_mirrors`、`get_scansci_status` |
