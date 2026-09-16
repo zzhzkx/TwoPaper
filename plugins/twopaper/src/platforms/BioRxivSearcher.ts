@@ -55,6 +55,12 @@ export class BioRxivSearcher extends PaperSource {
   private readonly rateLimiter: RateLimiter;
   /** bioRxiv/medRxiv API 单页返回条数(服务端按日/自然限幅,响应中 count 字段给出) */
   private readonly pageSize = 30;
+  /** 早于此日期无数据（bioRxiv 始于 2013，medRxiv 始于 2019），用固定下界避免按"天数"推算 */
+  private readonly EARLIEST_DATE = '2013-01-01';
+  /** 关键词扫描最多翻的页数（每页 30 条），与墙钟封顶共同约束成本 */
+  private readonly MAX_SCAN_PAGES = 5;
+  /** 关键词扫描的墙钟预算：超出即返回已攒到的命中，避免把调用方（尤其聚合）拖到超时 */
+  private readonly SCAN_DEADLINE_MS = 6000;
 
   constructor(serverType: 'biorxiv' | 'medrxiv' = 'biorxiv') {
     // 从 API_ENDPOINTS 选取对应主机,消除硬编码与双源漂移
@@ -83,6 +89,11 @@ export class BioRxivSearcher extends PaperSource {
    * 搜索bioRxiv/medRxiv论文
    */
   async search(query: string, options: BioRxivSearchOptions = {}): Promise<Paper[]> {
+    // 若用户没有显式给出 category，则自行扫描；给出时沿用旧的单窗口逻辑。
+    if (!options.category) {
+      return this.searchByKeywordScan(query, options);
+    }
+
     // 校验 query 长度/复杂度,防止对 API 的 DoS
     const validation = validateQueryComplexity(query, {
       maxLength: SEARCH_LIMITS.MAX_QUERY_LENGTH,
@@ -114,12 +125,6 @@ export class BioRxivSearcher extends PaperSource {
         const params: Record<string, any> = {
           cursor
         };
-
-        // 仅当用户显式传入 options.category 时才作为 API category 过滤;
-        // 不再把自由文本 query 强行做下划线替换塞进 category(那会让 API 返回空)。
-        if (options.category) {
-          params.category = options.category;
-        }
 
         logDebug(`${this.serverType} API Request: GET ${searchUrl}`);
         logDebug(`${this.serverType} Request params:`, params);
@@ -174,6 +179,85 @@ export class BioRxivSearcher extends PaperSource {
       return papers;
     } catch (error: any) {
       logDebug(`${this.serverType} Search Error:`, error.message);
+      this.handleHttpError(error, 'search');
+    }
+  }
+
+  /**
+   * 关键词检索：bioRxiv/medRxiv 上游**没有关键词检索 API**，只有按日期区间返回的
+   * `details/{server}/{start}/{end}/{cursor}`（时间正序分页）。只能在客户端过滤，
+   * 且要"从最新往回翻"才有意义 —— 最新论文在末尾页（cursor ≈ total - pageSize）。
+   *
+   * 旧实现取 `cursor=0`（最旧一页）并在首个空页 break，等于永远看不到近期论文，
+   * 对绝大多数关键词恒返回 0。这里改为：
+   *   1. 先取一页拿到 total；
+   *   2. 从最新页起、按 pageSize 往回翻；
+   *   3. 页数（MAX_SCAN_PAGES）与墙钟（SCAN_DEADLINE_MS）双重封顶，避免拖垮调用/聚合。
+   */
+  private async searchByKeywordScan(query: string, options: BioRxivSearchOptions): Promise<Paper[]> {
+    const validation = validateQueryComplexity(query, {
+      maxLength: SEARCH_LIMITS.MAX_QUERY_LENGTH,
+      maxBooleanOperators: SEARCH_LIMITS.MAX_BOOLEAN_OPERATORS
+    });
+    if (!validation.valid) {
+      this.handleHttpError(
+        Object.assign(new Error(validation.error || 'Invalid query'), { invalidQuery: true }),
+        'search'
+      );
+    }
+
+    const requested = Math.max(1, options.maxResults || SEARCH_LIMITS.DEFAULT_RESULTS);
+    const maxResults = Math.min(requested, SEARCH_LIMITS.MAX_RESULTS);
+    const PAGE = this.pageSize;
+    const end = new Date().toISOString().split('T')[0];
+    const start = this.EARLIEST_DATE;
+    const deadline = Date.now() + this.SCAN_DEADLINE_MS;
+
+    const fetchPage = async (cursor: number) => {
+      const response = await ErrorHandler.retryWithBackoff(
+        async () => {
+          await this.rateLimiter.waitForPermission();
+          return axios.get(`${this.baseUrl}/${start}/${end}/${cursor}`, {
+            timeout: TIMEOUTS.DEFAULT,
+            headers: { 'User-Agent': USER_AGENT }
+          });
+        },
+        { context: `${this.serverType} keyword scan` }
+      );
+      const data = response.data as BioRxivResponse;
+      const message = data.messages?.[0];
+      if (!message || message.status !== 'ok') {
+        const msg = message?.status ? `status=${message.status}` : 'empty messages';
+        throw new Error(`${this.serverType} API returned non-ok state: ${msg}`);
+      }
+      return { total: Number(message.total) || 0, collection: data.collection || [] };
+    };
+
+    try {
+      const first = await fetchPage(0); // 只为拿 total（该页是最旧的，不用于结果）
+      let cursor = Math.max(0, first.total - PAGE);
+      const papers: Paper[] = [];
+      const seen = new Set<string>();
+
+      for (let page = 0; page < this.MAX_SCAN_PAGES; page++, cursor -= PAGE) {
+        if (papers.length >= maxResults || cursor < 0 || Date.now() > deadline) break;
+        const { collection } = await fetchPage(cursor);
+        if (collection.length === 0) break;
+
+        for (const item of collection) {
+          const key = item.doi || `${item.date}|${item.title}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const paper = this.parseSearchResponse({ collection: [item] } as any, query, options)[0];
+          if (paper) papers.push(paper);
+          if (papers.length >= maxResults) break;
+        }
+      }
+
+      logDebug(`${this.serverType} keyword scan matched ${papers.length} (pages ≤${this.MAX_SCAN_PAGES})`);
+      return papers.slice(0, maxResults);
+    } catch (error: any) {
+      logDebug(`${this.serverType} keyword scan error:`, error.message);
       this.handleHttpError(error, 'search');
     }
   }
@@ -305,16 +389,24 @@ export class BioRxivSearcher extends PaperSource {
       return [];
     }
 
-    // 如果有查询词，进行文本匹配过滤(判空防护:缺字段的记录跳过而非抛 TypeError)
+    // 上游无关键词检索，只能客户端过滤。既不能整句短语子串匹配（Query 原文几乎不可能连续出现 → 恒 0），
+    // 也不能"任一词元命中"（等于不过滤）。折中：按**命中词元数打分**，保留命中数 ≥ 半数者，并按分数降序。
+    //   1 词 → 必须命中；2 词 → 两词都中(AND)；3 词 → 至少 2；4 词 → 至少 2；5 词 → 至少 3 …
     let filteredCollection = data.collection;
     if (query && query !== '*' && query.trim()) {
-      const queryLower = query.toLowerCase();
-      filteredCollection = data.collection.filter(item =>
-        String(item.title || '').toLowerCase().includes(queryLower) ||
-        String(item.abstract || '').toLowerCase().includes(queryLower) ||
-        String(item.authors || '').toLowerCase().includes(queryLower) ||
-        String(item.category || '').toLowerCase().includes(queryLower)
-      );
+      const tokens = query.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+      if (tokens.length) {
+        const minMatch = tokens.length <= 2 ? tokens.length : Math.ceil(tokens.length / 2);
+        const scored = data.collection
+          .map(item => {
+            const hay = `${item.title || ''} ${item.abstract || ''} ${item.authors || ''} ${item.category || ''}`.toLowerCase();
+            const score = tokens.filter(t => hay.includes(t)).length;
+            return { item, score };
+          })
+          .filter(x => x.score >= minMatch)
+          .sort((a, b) => b.score - a.score);
+        filteredCollection = scored.map(x => x.item);
+      }
     }
 
     return filteredCollection.map(item => this.parseBioRxivPaper(item))

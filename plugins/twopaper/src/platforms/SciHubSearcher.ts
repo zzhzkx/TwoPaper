@@ -485,14 +485,25 @@ export class SciHubSearcher extends PaperSource {
   }
 
   /**
-   * 获取镜像站点状态
+   * 获取镜像站点状态。
+   *
+   * 注意：构造函数把全部镜像初始化为 isWorking=true，但那是**未探测的占位值**，
+   * 不是真实健康状态。若从未做过健康检查（lastHealthCheck 为空），
+   * 必须返回 'Unverified' 而不是谎报 'Working' —— 否则用户会以为兜底通路健康
+   * （实测默认 "11/11 Working" 耗时 8ms，物理上不可能完成 11 次探测）。
    */
   getMirrorStatus(): { url: string; status: string; responseTime?: number }[] {
+    const checked = this.lastHealthCheck !== null;
     return this.mirrorSites.map(mirror => ({
       url: mirror.url,
-      status: mirror.isWorking ? 'Working' : 'Failed',
+      status: !checked ? 'Unverified' : mirror.isWorking ? 'Working' : 'Failed',
       responseTime: mirror.responseTime
     }));
+  }
+
+  /** 是否已做过健康检查（供调用方判断状态是否可信）。 */
+  hasChecked(): boolean {
+    return this.lastHealthCheck !== null;
   }
 
   /**

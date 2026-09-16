@@ -96,8 +96,14 @@ export declare abstract class PaperSource {
      * 根据DOI获取论文信息
      * @param doi DOI标识符
      * @returns Promise<Paper | null> 论文信息或null
+     *
+     * 默认实现走 search(doi)。但不少平台把 DOI 当**普通关键词**搜索，返回的是"最相关"
+     * 而非"就是这篇"的结果——若不校验就会把**别的论文**当成命中带进引用链。
+     * 故这里比对规范化后的 DOI，不匹配一律返回 null（宁可没有，不可给错）。
      */
     getPaperByDoi(doi: string): Promise<Paper | null>;
+    /** 规范化 DOI 后比对（小写、去 URL 前缀与首尾空白）。 */
+    protected doiMatches(requested: string, returned?: string | null): boolean;
     /**
      * 验证API密钥是否有效
      * @returns Promise<boolean> 是否有效

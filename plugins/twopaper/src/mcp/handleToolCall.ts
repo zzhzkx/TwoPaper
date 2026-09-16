@@ -659,8 +659,17 @@ export async function handleToolCall(
       if (forceCheck) {
         await searchers.scihub.forceHealthCheck();
       }
+      const probed = searchers.scihub.hasChecked();
       const mirrorStatus = searchers.scihub.getMirrorStatus();
-      return jsonTextResponse(`Sci-Hub Mirror Status:\n\n${JSON.stringify(mirrorStatus, null, 2)}`);
+      const working = mirrorStatus.filter((m) => m.status === 'Working').length;
+      const note = probed
+        ? `Probed: ${working}/${mirrorStatus.length} working.`
+        : `Not probed yet — statuses are "Unverified" (the mirror list defaults to all-up without a network check). ` +
+          `Call again with { "forceCheck": true } to run a real health check (~30–60s for 11 mirrors); ` +
+          `results are then cached for 5 minutes.`;
+      return jsonTextResponse(
+        `Sci-Hub Mirror Status (probed: ${probed}):\n\n${note}\n\n${JSON.stringify(mirrorStatus, null, 2)}`
+      );
     }
 
     case 'search_sciencedirect': {
@@ -668,13 +677,27 @@ export async function handleToolCall(
       if (!process.env.ELSEVIER_API_KEY) {
         throw new Error('Elsevier API key not configured. Please set ELSEVIER_API_KEY environment variable.');
       }
-      const results = await searchers.sciencedirect.search(query, {
-        maxResults,
-        year,
-        author,
-        journal,
-        openAccess
-      });
+      let results;
+      try {
+        results = await searchers.sciencedirect.search(query, {
+          maxResults,
+          year,
+          author,
+          journal,
+          openAccess
+        });
+      } catch (e: any) {
+        // 401 多半不是"key 没配"（能配 Scopus 的同款 key 本身就有效），而是该 key 未订阅 ScienceDirect 产品。
+        // 原样抛出会被误读为 unconfigured，用户会去反复检查已正确的 key。
+        if (/\b401\b|invalid or missing api key|unauthor/i.test(e?.message || '')) {
+          throw new Error(
+            'ScienceDirect rejected the request (HTTP 401). ELSEVIER_API_KEY is set, and the same key works ' +
+              'for Scopus — so this is almost certainly a missing ScienceDirect product entitlement, not a bad key. ' +
+              'Check your subscription at https://dev.elsevier.com/apikey/manage'
+          );
+        }
+        throw e;
+      }
 
       return jsonTextResponse(
         `Found ${results.length} ScienceDirect papers.\n\n${JSON.stringify(

@@ -220,11 +220,13 @@ export class WebOfScienceSearcher extends PaperSource {
             limit: Math.min(options.maxResults || 10, 100), // WOS API限制最大100条
             page: 1
         };
-        // 添加排序参数 - 使用正确的API参数名
+        // 添加排序参数 - 使用正确的API参数名（仅在映射到合法字段时才加，否则省略用服务端默认）
         if (options.sortBy) {
             const sortField = this.mapSortField(options.sortBy);
-            const direction = (options.sortOrder || 'DESC').toUpperCase();
-            params.sortField = `${sortField} ${direction}`; // v1/v2 expect "TAG DIRECTION"
+            if (sortField) {
+                const direction = (options.sortOrder || 'DESC').toUpperCase();
+                params.sortField = `${sortField} ${direction}`; // v2 expects "TAG DIRECTION"
+            }
         }
         return params;
     }
@@ -328,15 +330,14 @@ export class WebOfScienceSearcher extends PaperSource {
      * 映射排序字段到WOS API格式
      */
     mapSortField(sortBy) {
+        // WoS Starter v2 只接受 LD/PY/RS/TC；用别的值（如 'relevance'、'PD'）会直接 400。
+        // 旧映射返回 'relevance'/'PD'/'TI' 等非法值 → 聚合默认带 sortBy=relevance 时必然 400。
         const fieldMap = {
-            'relevance': 'relevance',
-            'date': 'PD', // Publication Date - 更准确的日期排序字段
-            'citations': 'TC', // Times Cited
-            'title': 'TI', // Title
-            'author': 'AU', // Author
-            'journal': 'SO' // Source (Journal)
+            relevance: 'RS', // Relevance Sort
+            date: 'PY', // Publication Year（最接近"按日期"的合法字段）
+            citations: 'TC' // Times Cited
         };
-        return fieldMap[sortBy.toLowerCase()] || 'relevance';
+        return fieldMap[sortBy.toLowerCase()] || '';
     }
     /**
      * 解析搜索响应

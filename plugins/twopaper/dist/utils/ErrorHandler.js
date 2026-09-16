@@ -2,7 +2,7 @@
  * Unified Error Handler for API requests
  * Provides consistent error handling across all platforms
  */
-import { sanitizeRequest, maskSensitiveData } from './SecurityUtils.js';
+import { sanitizeRequest, maskSensitiveData, looksLikeToken } from './SecurityUtils.js';
 import { logError as loggerError, logDebug } from './Logger.js';
 /**
  * API Error codes and their meanings
@@ -114,8 +114,10 @@ export class ErrorHandler {
             operation,
             stack: this.verbose ? error.stack : undefined
         });
+        // 与 HTTP 通用分支一致：仅当消息本身像密钥时才遮蔽，避免毁掉诊断信息
+        const safeMessage = looksLikeToken(message) ? maskSensitiveData(message) : message;
         throw new ApiError({
-            message: `${this.platform} ${operation} failed: ${message}`,
+            message: `${this.platform} ${operation} failed: ${safeMessage}`,
             platform: this.platform,
             operation
         });
@@ -162,9 +164,12 @@ export class ErrorHandler {
             return `${this.platform}: Server error (${status}). The service may be temporarily unavailable.`;
         }
         // Generic message
+        // 仅当消息**本身像密钥**时才遮蔽——否则会把诊断信息毁成星号
+        // （如 `connect ECONNREFUSED 127.0.0.1:443` 曾被打成 `conn****:443`）。
         const prefix = `${this.platform} ${operation} failed`;
         const statusInfo = status ? ` (${status}${statusDesc ? ': ' + statusDesc : ''})` : '';
-        return `${prefix}${statusInfo}: ${maskSensitiveData(message)}`;
+        const safeMessage = looksLikeToken(message) ? maskSensitiveData(message) : message;
+        return `${prefix}${statusInfo}: ${safeMessage}`;
     }
     /**
      * Sanitize URL for logging
