@@ -20,7 +20,7 @@ import { resolveEnvPath, loadEnv } from '../../src/utils/env.js';
 
 let tmpDir: string;
 let envFile: string;
-const touched = ['TWOPAPER_ENV_FILE', 'WOS_API_KEY', 'OA_EMAIL', 'MINERU_TOKEN'];
+const touched = ['TWOPAPER_ENV_FILE', 'WOS_API_KEY', 'OA_EMAIL', 'MINERU_TOKEN', 'CLAUDE_PLUGIN_DATA'];
 
 beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'twopaper-cred-'));
@@ -66,8 +66,24 @@ describe('resolveEnvPath', () => {
     expect(resolveEnvPath()).toBe(path.resolve(envFile));
   });
 
-  it('prefers CLAUDE_PLUGIN_ROOT when no explicit override is set', () => {
+  it('prefers CLAUDE_PLUGIN_DATA (persistent) over CLAUDE_PLUGIN_ROOT', () => {
     delete process.env.TWOPAPER_ENV_FILE;
+    const savedRoot = process.env.CLAUDE_PLUGIN_ROOT;
+    process.env.CLAUDE_PLUGIN_ROOT = path.join(tmpDir, 'plugin');
+    process.env.CLAUDE_PLUGIN_DATA = path.join(tmpDir, 'data');
+    try {
+      // 持久数据目录跨插件更新存活，配置应落在这里而非版本化的安装根
+      expect(resolveEnvPath()).toBe(path.join(tmpDir, 'data', '.env'));
+    } finally {
+      if (savedRoot === undefined) delete process.env.CLAUDE_PLUGIN_ROOT;
+      else process.env.CLAUDE_PLUGIN_ROOT = savedRoot;
+      delete process.env.CLAUDE_PLUGIN_DATA;
+    }
+  });
+
+  it('falls back to CLAUDE_PLUGIN_ROOT when no data dir is present', () => {
+    delete process.env.TWOPAPER_ENV_FILE;
+    delete process.env.CLAUDE_PLUGIN_DATA;
     const saved = process.env.CLAUDE_PLUGIN_ROOT;
     process.env.CLAUDE_PLUGIN_ROOT = path.join(tmpDir, 'plugin');
     try {

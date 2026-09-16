@@ -7,8 +7,9 @@
  *
  * 现在按优先级显式定位，并让 setup 工具写往同一个文件，保证「写进去的 = 读得到的」：
  *   1. TWOPAPER_ENV_FILE 显式覆盖（测试/多环境用）
- *   2. CLAUDE_PLUGIN_ROOT/.env —— 宿主注入的插件根，安装态与开发态都正确
- *   3. <模块所在目录>/../.env —— 兜底；src/ 与 dist/ 相对插件根同为一级深度
+ *   2. CLAUDE_PLUGIN_DATA/.env —— 插件持久数据目录，**跨插件更新存活**（官方推荐的持久落点）
+ *   3. CLAUDE_PLUGIN_ROOT/.env —— 插件安装根，随版本变化；仅在无 data 目录时回退
+ *   4. <包根>/.env —— 开发态兜底；src/ 与 dist/ 相对插件根同为一级深度
  *
  * 注意：宿主 env（process.env）优先级**高于** .env——dotenv 默认不覆盖已存在的变量，
  * 因此 ~/.claude/settings.json 的 env 块与插件 .env 可共存，前者胜出。
@@ -29,6 +30,13 @@ export function resolveEnvPath(): string {
     return path.resolve(explicit);
   }
 
+  // 持久数据目录：宿主为每个插件注入，跨版本更新存活 —— 配置的主落点
+  const dataDir = process.env.CLAUDE_PLUGIN_DATA;
+  if (dataDir && dataDir.trim() !== '') {
+    return path.join(dataDir, '.env');
+  }
+
+  // 安装根：随版本变化，仅在没有 data 目录时回退（开发态 / 旧宿主）
   const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT;
   if (pluginRoot && pluginRoot.trim() !== '') {
     return path.join(pluginRoot, '.env');
