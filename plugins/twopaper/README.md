@@ -17,9 +17,24 @@ A Node.js Model Context Protocol (MCP) server for searching and downloading acad
 **核心收敛入口**：`search_papers(platform="all")`（真聚合检索）→ `get_pdf`（统一拿 PDF）→ `get_fulltext`（MinerU PDF→Markdown）→ `get_platform_status`（统一凭证/限流状态）。
 
 - **`get_oa_pdf`**：合法 OA 定位（Unpaywall / OpenAlex / Europe PMC），返回 PDF 直链与许可。
-- **`get_pdf`**：OA → 合法平台 → **scansci 桥接** 兜底。受机构下载硬限额约束（`DOWNLOAD_PER_MINUTE/HOUR/DAY`，默认 2/100/500，env 可调），PDF 按 `作者_年份_短标题_哈希.pdf` 存入 `downloads/<作者>/`，同 DOI 自动去重。
-- **`get_fulltext`**：内集成 **MinerU Precise API** 把本地 PDF 转成干净 Markdown（需 `MINERU_TOKEN`）；未配 token 时降级为平台 `readPaper` 纯文本。
+- **`get_pdf`**：OA → 合法平台 → **scansci 桥接** 兜底。受机构下载硬限额约束（`DOWNLOAD_PER_MINUTE/HOUR/DAY`，默认 2/100/500，env 可调），PDF 按 `作者_年份_短标题_哈希.pdf` 命名，同 DOI 自动去重。
+- **`get_fulltext`**：内集成 **MinerU Precise API** 把本地 PDF 转成干净 Markdown（需 `MINERU_TOKEN`），并把论文配图解出到 `images/`；未配 token 时降级为平台 `readPaper` 纯文本。
 - **`get_scansci_status`**：只读探测 scansci 桥接目标可达性。
+
+### 产物布局（跟随当前工作目录）
+
+论文产物落在**你当前 Claude 工作目录**下的 `twopaper/`，而不是插件安装目录——换一个干净的工作目录时，下载与转换结果就出现在该目录里：
+
+```
+<cwd>/twopaper/
+├── <作者>_<年份>_<标题>_<哈希>.pdf    命名好的 PDF（扁平存放）
+├── <作者>_<年份>_<标题>_<哈希>.md     与 PDF 同名的全文 Markdown
+└── images/<sha>.jpg                   Markdown 引用的论文配图
+```
+
+根目录取 `CLAUDE_PROJECT_DIR`（宿主注入的项目根，回退 `process.cwd()`）；可用 `TWOPAPER_OUTPUT_DIR` 覆盖，`DEFAULT_DOWNLOAD_PATH` / `MINERU_OUTPUT_DIR` 分别覆盖 PDF 与 Markdown 根。
+
+**裸名回填**：若某篇 PDF 下载时没取到元数据（退化为 `1706.03762.pdf` 或 `Unknown_*.pdf`），`get_fulltext` 转成 Markdown 后会**从正文解析标题/作者/年份，把 PDF 与 Markdown 一起改回可读名**。
 
 **桥接 scansci（paywalled 兜底）**：当无合法途径时，`get_pdf` 返回指令块，宿主引导调用已注册的 `scansci_pdf_download`；TwoPaper 不重新分发 scansci 闭源层，凭证留其本机。详见 [docs/BRIDGING.md](docs/BRIDGING.md)。
 
