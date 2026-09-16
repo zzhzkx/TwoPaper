@@ -47,17 +47,35 @@ A Node.js Model Context Protocol (MCP) server for searching and downloading acad
 
 ## 🔑 配置凭证
 
-**推荐做法：让 Agent 引导配置。** 装上插件后直接说「配置 TwoPaper 凭证」，或让 Agent 调 `twopaper_setup`（不带参数）——它会列出每项凭证缺什么、解锁什么能力、去哪申请，然后把值传回即可写入：
+**推荐做法：安装/启用时填一次弹窗。** TwoPaper 在 `plugin.json` 里声明了 `userConfig`，Claude Code 会在**启用插件时弹出配置对话框**，逐项引导填写（每项都带"解锁什么能力 + 去哪申请"）。**敏感值由宿主存入操作系统钥匙串 / 凭据库，不写入任何环境变量，也不以明文留在配置文件里。**
+
+| 配置项 | 解锁能力 | 必需 | 申请地址 |
+|---|---|---|---|
+| `oa_email` | 合法 OA 定位（Unpaywall 礼貌池） | ✔ | 填自己的邮箱即可 |
+| `mineru_token` | `get_fulltext` 的 PDF→Markdown | ✔ | https://mineru.net/apiManage |
+| `wos_api_key` | Web of Science 检索 | 付费 | https://developer.clarivate.com/apis |
+| `elsevier_api_key` | Scopus / ScienceDirect | 付费 | https://dev.elsevier.com/apikey/manage |
+| `springer_api_key` | Springer 检索与下载 | 付费 | https://dev.springernature.com/signup |
+| `wiley_tdm_token` | Wiley 全文下载 | 付费 | https://onlinelibrary.wiley.com/library-info/resources/text-and-datamining |
+| `pubmed_api_key` | PubMed 限流 3→10 rps | 可选 | https://www.ncbi.nlm.nih.gov/books/NBK25497/ |
+| `semantic_scholar_api_key` | Semantic Scholar 20→180 rpm | 可选 | https://www.semanticscholar.org/product/api |
+| `openalex_api_key` | OpenAlex key+credits | 可选 | https://openalex.org/ |
+
+只填免费/基础项也能用：arXiv、bioRxiv、medRxiv、Crossref、PubMed、OA 定位开箱即得，未配的付费渠道在 `get_platform_status` 里显示 `UNCONFIGURED`，跳过即可。
+
+**错过弹窗、或想改？** 两条后补路径：
+
+1. 在 Claude Code 里执行 `/plugin` 重开插件配置；或命令行指定
+   `claude plugin install --config oa_email=you@x.com --config mineru_token=... twopaper@twopaper-market`；
+2. 或让 Agent 调 `twopaper_setup` 工具（**可选微调**，不再是唯一入口）——它列出缺口清单与申请地址，把值传回即写入插件持久数据目录下的 `.env`：
 
 ```json
-{ "tool": "twopaper_setup", "arguments": { "credentials": { "WOS_API_KEY": "xxx", "OA_EMAIL": "me@example.com" } } }
+{ "tool": "twopaper_setup", "arguments": { "credentials": { "OA_EMAIL": "me@example.com", "MINERU_TOKEN": "..." } } }
 ```
 
-写入位置是**插件的持久数据目录下的 `.env`**（`~/.claude/plugins/data/twopaper-twopaper-market/.env`，工具会回报绝对路径）。选这里是因为它**跨插件更新存活**——若写到版本化的安装目录（`.../cache/.../<commit>/`），下次 `plugin update` 就会随旧版本目录一起失效。写入后重启 Claude Code 会话生效。
-
-也可改用宿主环境变量（`~/.claude/settings.json` 的 `env` 块），其**优先级高于 `.env`**（宿主 env 不会被文件覆盖）。**全程不写入操作系统级环境变量。**
-
-> **定位优先级**：`TWOPAPER_ENV_FILE`（显式覆盖）→ `${CLAUDE_PLUGIN_DATA}/.env` → `${CLAUDE_PLUGIN_ROOT}/.env`（无 data 目录时回退）。`.env` 按插件自身定位，**不是**当前工作目录——因此无论你在哪个项目里使用，配置都持续生效。
+> **取值优先级**：宿主注入（`userConfig` 弹窗 / `~/.claude/settings.json` 的 `env` 块）**高于** `${CLAUDE_PLUGIN_DATA}/.env`，再高于 `${CLAUDE_PLUGIN_ROOT}/.env`。`.env` 按插件自身定位、**不是**当前工作目录——所以换项目也持续生效。**全程不写入操作系统级环境变量。**
+>
+> `.mcp.json` 只透传上述 9 个凭证；下载限流（`DOWNLOAD_PER_MINUTE/HOUR/DAY`）与 `GET_PDF_BRIDGE` 等**调优项**用代码默认值（2/100/500、`hint`），需要改时写进插件 `.env` 即可，无需重启宿主。
 
 ## ✨ Key Features
 
@@ -102,10 +120,25 @@ This project includes integrations that may have **legal, contractual (ToS), and
 
 ## 🚀 Quick Start
 
+### 作为 Claude Code 插件安装（推荐）
+
+```bash
+# 1) 添加并安装
+claude plugin marketplace add zzhzkx/TwoPaper
+claude plugin install twopaper@twopaper-market
+
+# 2) 启用时会弹出配置对话框 —— 逐项填写凭证（敏感值进系统钥匙串，非环境变量）
+#    错过弹窗可随时：/plugin → 重开配置，或 claude plugin install --config oa_email=you@x.com ...
+```
+
+装完**直接就能用**：MCP server 由插件自带注册（`plugin:twopaper:twopaper`），产物是**单文件自包含** `dist/server.js`，**无需 `npm install`、无需联网装包**——只要机器有 Node.js ≥ 18。
+
+**依赖说明**：宿主安装插件时不会替插件装依赖，因此发布产物用 esbuild 把全部依赖内联成单个 `dist/server.js`（`npm run build` 产出）。源码改动后务必重新 build 再提交，否则 `dist/` 陈旧。
+
 ### System Requirements
 
 - Node.js >= 18.0.0
-- npm or yarn
+- npm or yarn（**仅本地开发/构建需要**；作为插件使用不需要）
 
 ### Installation
 

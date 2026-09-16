@@ -5,20 +5,15 @@
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/dist/server.js"],
       "env": {
-        "WOS_API_KEY": "${WOS_API_KEY}",
-        "PUBMED_API_KEY": "${PUBMED_API_KEY}",
-        "ELSEVIER_API_KEY": "${ELSEVIER_API_KEY}",
-        "SPRINGER_API_KEY": "${SPRINGER_API_KEY}",
-        "WILEY_TDM_TOKEN": "${WILEY_TDM_TOKEN}",
-        "SEMANTIC_SCHOLAR_API_KEY": "${SEMANTIC_SCHOLAR_API_KEY}",
-        "OPENALEX_API_KEY": "${OPENALEX_API_KEY}",
-        "MINERU_TOKEN": "${MINERU_TOKEN}",
-        "OA_EMAIL": "${OA_EMAIL}",
-        "CROSSREF_MAILTO": "${CROSSREF_MAILTO}",
-        "DOWNLOAD_PER_MINUTE": "${DOWNLOAD_PER_MINUTE}",
-        "DOWNLOAD_PER_HOUR": "${DOWNLOAD_PER_HOUR}",
-        "DOWNLOAD_PER_DAY": "${DOWNLOAD_PER_DAY}",
-        "GET_PDF_BRIDGE": "${GET_PDF_BRIDGE}"
+        "WOS_API_KEY": "${user_config.wos_api_key}",
+        "ELSEVIER_API_KEY": "${user_config.elsevier_api_key}",
+        "SPRINGER_API_KEY": "${user_config.springer_api_key}",
+        "WILEY_TDM_TOKEN": "${user_config.wiley_tdm_token}",
+        "MINERU_TOKEN": "${user_config.mineru_token}",
+        "OA_EMAIL": "${user_config.oa_email}",
+        "PUBMED_API_KEY": "${user_config.pubmed_api_key}",
+        "SEMANTIC_SCHOLAR_API_KEY": "${user_config.semantic_scholar_api_key}",
+        "OPENALEX_API_KEY": "${user_config.openalex_api_key}"
       }
     }
   }

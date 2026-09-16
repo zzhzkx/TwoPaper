@@ -8,7 +8,8 @@
     "twopaper": "dist/server.js"
   },
   "scripts": {
-    "build": "npx tsc",
+    "build": "npm run typecheck && node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
     "start": "node dist/server.js",
     "start:mcp": "tsx src/server.ts",
     "dev": "tsx src/server.ts",
@@ -49,6 +50,7 @@
     "@types/xml2js": "^0.4.14",
     "@typescript-eslint/eslint-plugin": "^7.16.0",
     "@typescript-eslint/parser": "^7.16.0",
+    "esbuild": "^0.27.1",
     "eslint": "^8.57.0",
     "jest": "^29.7.0",
     "prettier": "^3.3.2",

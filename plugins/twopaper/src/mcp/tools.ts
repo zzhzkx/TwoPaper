@@ -567,7 +567,7 @@ export const TOOLS: Tool[] = [
   {
     name: 'twopaper_setup',
     description:
-      'Configure API credentials for TwoPaper. Call with no arguments to get the checklist of credentials, what each unlocks, and where to obtain it. Call with a `credentials` object to persist values into the plugin .env (written to the plugin directory, so it survives across sessions). Values are never echoed back. Requires a session restart for the host to inject them into the MCP process unless the same session re-reads them.',
+      'Optional credential micro-configuration for TwoPaper. The PRIMARY path is the plugin\'s install/enable config dialog (plugin.json userConfig, stored in the OS keychain) — use that first. This tool is a fallback: call with no arguments to get the checklist of credentials (what each unlocks, where to obtain it), or with a `credentials` object to persist values into the plugin .env (survives across sessions). Values are never echoed back. Requires a session restart for the host to inject them into the MCP process.',
     inputSchema: {
       type: 'object',
       properties: {

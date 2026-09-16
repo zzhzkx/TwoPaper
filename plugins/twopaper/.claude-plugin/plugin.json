@@ -7,5 +7,62 @@
     "url": "https://github.com/zzhzkx"
   },
   "license": "MIT",
-  "skills": "./skills"
+  "skills": "./skills",
+  "userConfig": {
+    "wos_api_key": {
+      "type": "string",
+      "title": "Web of Science API Key",
+      "description": "Clarivate Web of Science 检索（引文分析、高被引）。申请：https://developer.clarivate.com/apis",
+      "sensitive": true
+    },
+    "elsevier_api_key": {
+      "type": "string",
+      "title": "Elsevier API Key",
+      "description": "Scopus 检索 + ScienceDirect（ScienceDirect 另需产品授权）。申请：https://dev.elsevier.com/apikey/manage",
+      "sensitive": true
+    },
+    "springer_api_key": {
+      "type": "string",
+      "title": "Springer Nature API Key",
+      "description": "Springer 检索与下载。申请：https://dev.springernature.com/signup",
+      "sensitive": true
+    },
+    "wiley_tdm_token": {
+      "type": "string",
+      "title": "Wiley TDM Token",
+      "description": "Wiley 文本挖掘全文下载（需机构订阅注册）。申请：https://onlinelibrary.wiley.com/library-info/resources/text-and-datamining",
+      "sensitive": true
+    },
+    "mineru_token": {
+      "type": "string",
+      "title": "MinerU Token",
+      "description": "get_fulltext 的 PDF→Markdown 转换（Precise API）。申请：https://mineru.net/apiManage",
+      "sensitive": true
+    },
+    "oa_email": {
+      "type": "string",
+      "title": "OA Contact Email",
+      "description": "Unpaywall / Europe PMC 合法 OA 定位的礼貌池邮箱，填你自己的邮箱即可，无需申请。",
+      "required": true,
+      "sensitive": true
+    },
+    "pubmed_api_key": {
+      "type": "string",
+      "title": "PubMed API Key (可选)",
+      "description": "把 PubMed 限流从 3 rps 提到 10 rps。申请：https://www.ncbi.nlm.nih.gov/books/NBK25497/",
+      "sensitive": true
+    },
+    "semantic_scholar_api_key": {
+      "type": "string",
+      "title": "Semantic Scholar API Key (可选)",
+      "description": "把 Semantic Scholar 限流从 20 rpm 提到 ~180 rpm。申请：https://www.semanticscholar.org/product/api",
+      "sensitive": true
+    },
+    "openalex_api_key": {
+      "type": "string",
+      "title": "OpenAlex API Key (可选)",
+      "description": "OpenAlex key+credits 模式（无 key 也可用）。申请：https://openalex.org/",
+      "sensitive": true
+    }
+  }
 }

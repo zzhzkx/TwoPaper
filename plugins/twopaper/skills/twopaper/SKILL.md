@@ -25,19 +25,21 @@ TwoPaper 通过本机 MCP server `twopaper` 提供 24 个工具，覆盖 **配�
 
 ## 首次使用：配置凭证
 
-若 `get_platform_status` 显示多個渠道 `UNCONFIGURED`，或 `missing_credentials` 非空，**先引导用户配置**，再谈检索：
+TwoPaper 的凭证在**安装 / 启用插件时**由宿主的配置弹窗收集（`plugin.json` 的 `userConfig`），敏感值存进**操作系统钥匙串**，不写环境变量。所以正常情况下**无需你做任何事**——先看渠道状态即可。
+
+仅当 `get_platform_status` 显示多个渠道 `UNCONFIGURED`、或 `missing_credentials` 非空时，才引导补配：
 
 1. 调 `twopaper_setup`（**不带参数**）→ 返回凭证清单：每项缺什么、解锁什么能力、去哪申请（含申请地址）。
 2. 把清单摘要给用户，**问他们要哪些 key**。不要替用户编造或猜测 key。
-3. 用户给值后，调 `twopaper_setup({ credentials: { "WOS_API_KEY": "...", "OA_EMAIL": "..." } })` 写入。
-4. 告知用户：**需重启 Claude Code 会话**，宿主才会把新值注入 MCP 进程。
+3. **优先引导用户走宿主配置界面**：`/plugin` → 重开插件配置（写入钥匙串，最安全）。若用户更想直接交给你，再调 `twopaper_setup({ credentials: { "OA_EMAIL": "...", "MINERU_TOKEN": "..." } })` 写入插件 `.env`。
+4. 若走了第 3 步的 `.env` 路径：**需重启 Claude Code 会话**，宿主才会把新值注入 MCP 进程；走 `/plugin` 弹窗路径则宿主自行处理。
 5. 重启后调 `get_platform_status` 复查。
 
 ```json
 { "tool": "twopaper_setup", "arguments": {} }
 ```
 
-写入位置是**插件目录下的 `.env`**（`twopaper_setup` 会回报绝对路径）。也可改用宿主级配置（`~/.claude/settings.json` 的 `env` 块），其**优先级高于 `.env`**。
+`twopaper_setup` 写入的是**插件持久数据目录下的 `.env`**（会回报绝对路径）。它现在只是**可选的后置微调**，不再是配置的唯一入口——安装弹窗才是首选。宿主注入的值（弹窗 / `settings.json` 的 `env` 块）**优先级高于 `.env`**。
 
 **凭证取值原则**：只按用户提供的值写入，绝不从其他来源推断或填充；`twopaper_setup` 从不回显具体值，只回报键名。
 
