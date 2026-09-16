@@ -124,6 +124,9 @@ downloads/
 # MinerU full-text Markdown output
 fulltext/
 
+# Benchmark/verification raw dumps (re-generable by scripts/bench/run_matrix.mjs)
+docs/reports/raw/
+
 # Test files
 test-results/
 test-*.js

@@ -1,6 +1,6 @@
 # Paper Search MCP (Node.js)
 
-## English|[中文](README-sc.md)
+## English|[中文](../../README.md)
 
 A Node.js Model Context Protocol (MCP) server for searching and downloading academic papers from multiple sources, including arXiv, Web of Science, PubMed, Google Scholar, Sci-Hub, ScienceDirect, Springer, Wiley, Scopus, Crossref, and **14 academic platforms** in total.
 
