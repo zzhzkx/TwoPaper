@@ -1,4 +1,5 @@
 import * as path from 'path';
+import * as fs from 'fs';
 import { selectSearchable } from './searchers.js';
 import { parseToolArgs } from './schemas.js';
 import { PaperFactory } from '../models/Paper.js';
@@ -13,6 +14,7 @@ import { PlatformRegistry } from '../services/PlatformRegistry.js';
 import { collectCredentials, missingCredentials, writeCredentials, WRITABLE_ENV_KEYS } from '../services/config/credentials.js';
 import { PDFExtractor } from '../utils/PDFExtractor.js';
 import { sanitizeDownloadPath, sanitizeDoi, withTimeout } from '../utils/SecurityUtils.js';
+import { resolveOutputRoot } from '../utils/paths.js';
 import { TIMEOUTS } from '../config/constants.js';
 import { logDebug } from '../utils/Logger.js';
 // 这些客户端在**构造时**读取 env（MINERU_TOKEN / DOWNLOAD_PER_* / SCANSCI_CMD / MINERU_OUTPUT_DIR …）。
@@ -138,7 +140,7 @@ async function downloadPaperPdf(searchers, paper, doi, savePathOverride) {
     // OA 分支直接写该文件；平台 downloadPdf 则把 savePath 当**目录**、自己再拼文件名，
     // 因此两条分支必须分别传文件路径与目录，否则会产出 "名字以 .pdf 结尾的目录"。
     const target = savePathOverride
-        ? sanitizeDownloadPath(savePathOverride, process.env.DEFAULT_DOWNLOAD_PATH || './downloads').sanitized
+        ? sanitizeDownloadPath(savePathOverride, process.env.DEFAULT_DOWNLOAD_PATH || resolveOutputRoot()).sanitized
         : paperNamer.resolveTargetPath(meta).sanitized;
     const targetDir = savePathOverride ? target : path.dirname(target);
     // 1. 合法 OA 直链
@@ -189,6 +191,96 @@ async function downloadPaperPdf(searchers, paper, doi, savePathOverride) {
     }
     // 3. 未命中 → 桥接指令块（hint）
     return { status: 'miss', hint: bridges.hint(cleanDoi) };
+}
+/** 裸名判定：arXiv 纯 id（1706.03762）或元数据缺失时的 Unknown_* 回退名，均视为"未命名好"。 */
+export function isBareName(pdfPath) {
+    const base = path.basename(pdfPath).replace(/\.pdf$/i, '');
+    if (/^\d{4}\.\d{4,5}(v\d+)?$/.test(base))
+        return true; // arXiv id
+    if (/^Unknown(_|$)/i.test(base))
+        return true; // PaperNamer 回退名
+    return false;
+}
+/**
+ * 从 MinerU 产出的 Markdown 里启发式解析论文元数据（不引入新依赖）。
+ * 结构通常是：可选的期刊抬头 → `# 标题` → 作者行（一人一行或逗号列表）→ 机构行 → …
+ *
+ * 注意作者行没有统一格式：
+ *   - 多作者一人一行、带 <sup>†</sup> 上标与邮箱（如 arXiv 版式）
+ *   - 单行逗号分隔（如 PLOS 版式）
+ * 故按 "截断到首个 HTML 标签 / 邮箱 → 取逗号前第一人 → 去掉尾部标记" 抽取。
+ */
+export function parseMetadataFromMarkdown(md) {
+    const lines = md.split(/\r?\n/).map((l) => l.replace(/\s+$/, '')).filter((l) => l.trim() !== '');
+    const h1 = lines.find((l) => /^#\s+\S/.test(l));
+    let title = h1 ? h1.replace(/^#\s+/, '').trim() : '';
+    if (!title) {
+        // 无 H1 时退回第一段"像标题"的正文行
+        title = lines.find((l) => !/^!\[/.test(l) && !/^[A-Z\s]{6,}$/.test(l) && l.length > 12 && l.length < 200 && !/[.!?]$/.test(l)) || '';
+    }
+    // 作者：标题之后的第一个"像人名"的行（跳过机构行），再抽取第一作者
+    let author = '';
+    const startIdx = h1 ? lines.indexOf(h1) + 1 : 0;
+    for (let i = startIdx; i < Math.min(startIdx + 8, lines.length); i++) {
+        const l = lines[i];
+        if (/^[#!|>]/.test(l) || /^https?:/i.test(l))
+            continue;
+        if (/universit|institut|department|school|laborator|college|academy|research\s+group|\binc\b|\bltd\b/i.test(l))
+            continue;
+        const name = extractFirstAuthor(l);
+        if (name && /\s/.test(name) && /[A-Za-zÀ-ɏ]/.test(name)) {
+            author = name;
+            break;
+        }
+    }
+    // 年份只在**摘要之前**的头部找（摘要正文里的 "WMT 2014" 之类会误导），优先带 citation/doi/© 的行
+    const absIdx = lines.findIndex((l) => /^#{1,6}\s*abstract\b/i.test(l) || /^abstract\b/i.test(l));
+    const head = lines.slice(0, absIdx > 0 ? absIdx : 20);
+    const citeLine = head.find((l) => /citation|doi:|©|\(19\d{2}\)|\(20\d{2}\)/i.test(l));
+    const ym = /\b(19|20)\d{2}\b/.exec(citeLine || head.join('\n'));
+    const year = ym ? ym[0] : '';
+    return { title: title || undefined, author: author || undefined, year: year || undefined };
+}
+/** 从一行里抽取第一作者姓名：截断到首个 HTML 标签/邮箱，取逗号前第一人，再去掉尾部符号与数字标记。 */
+function extractFirstAuthor(line) {
+    let s = line;
+    const tag = s.indexOf('<');
+    if (tag >= 0)
+        s = s.slice(0, tag); // <sup>†</sup> 之后通常是机构，舍去
+    const at = s.search(/[A-Za-z0-9._%+-]+@/); // 邮箱前的内容才是人名
+    if (at >= 0)
+        s = s.slice(0, at);
+    s = s.split(/[,;]/)[0]; // 逗号/分号列表取第一人
+    return s.replace(/[\s*†‡§¶#\d.]+$/g, '').trim();
+}
+/**
+ * 若 PDF 是裸名，则用 Markdown 解析出的元数据把它和 Markdown 一起重命名为「作者_年份_标题_哈希」。
+ * 目标已存在（同篇论文已下载过）时跳过，不覆盖。失败静默——重命名是锦上添花，不应阻塞返回。
+ */
+function tryRenameFromMarkdown(namer, pdfPath, mdPath, markdown) {
+    const fallback = { renamed: false, pdfPath, mdPath };
+    try {
+        if (!isBareName(pdfPath))
+            return fallback;
+        const meta = parseMetadataFromMarkdown(markdown);
+        if (!meta.title)
+            return fallback;
+        const { sanitized } = namer.resolveTargetPath(meta);
+        if (!sanitized || sanitized === pdfPath)
+            return fallback;
+        const newPdf = sanitized;
+        const newMd = newPdf.replace(/\.pdf$/i, '.md');
+        if (fs.existsSync(newPdf) || (newMd !== mdPath && fs.existsSync(newMd)))
+            return fallback;
+        fs.renameSync(pdfPath, newPdf);
+        if (fs.existsSync(mdPath))
+            fs.renameSync(mdPath, newMd);
+        return { renamed: true, pdfPath: newPdf, mdPath: newMd };
+    }
+    catch (e) {
+        logDebug('rename-from-markdown failed:', e?.message);
+        return fallback;
+    }
 }
 function jsonTextResponse(text) {
     return {
@@ -321,7 +413,7 @@ export async function handleToolCall(toolNameRaw, rawArgs, searchers) {
         }
         case 'download_paper': {
             const { paperId, platform, savePath } = args;
-            const pathResult = sanitizeDownloadPath(savePath, './downloads');
+            const pathResult = sanitizeDownloadPath(savePath, resolveOutputRoot());
             if (!pathResult.valid) {
                 throw new Error(pathResult.error || 'Invalid save path');
             }
@@ -390,7 +482,7 @@ export async function handleToolCall(toolNameRaw, rawArgs, searchers) {
         }
         case 'search_scihub': {
             const { doiOrUrl, downloadPdf, savePath } = args;
-            const pathResult = sanitizeDownloadPath(savePath, './downloads');
+            const pathResult = sanitizeDownloadPath(savePath, resolveOutputRoot());
             if (!pathResult.valid) {
                 throw new Error(pathResult.error || 'Invalid save path');
             }
@@ -573,7 +665,17 @@ export async function handleToolCall(toolNameRaw, rawArgs, searchers) {
             if (!sourcePdf)
                 return jsonTextResponse('Could not obtain a PDF to convert.');
             const result = await mineru.pdfToMarkdown(sourcePdf);
-            return jsonTextResponse(`Full-text (${result.modelVersion}) cached at ${result.cachePath}:\n\n${result.markdown}`);
+            // 若 PDF 只是裸名/Unknown（下载时没抓到元数据），用 MinerU 解析出的正文/标题回填重命名，
+            // 让 PDF 与 Markdown 都换成「作者_年份_标题_哈希」的可读名。失败不阻塞返回。
+            const renamed = tryRenameFromMarkdown(paperNamer, sourcePdf, result.cachePath, result.markdown);
+            const imgNote = result.imageCount
+                ? `\nImages (${result.imageCount}) → ${result.imagesDir}`
+                : '';
+            const lines = [`Full-text (${result.modelVersion}) cached at ${renamed.mdPath || result.cachePath}${imgNote}`];
+            if (renamed.renamed) {
+                lines.push(`PDF renamed → ${renamed.pdfPath}`);
+            }
+            return jsonTextResponse(`${lines.join('\n')}:\n\n${result.markdown}`);
         }
         case 'get_scansci_status': {
             const probe = bridges.probe();

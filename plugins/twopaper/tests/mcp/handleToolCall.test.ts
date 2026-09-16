@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, jest } from '@jest/globals';
-import { handleToolCall } from '../../src/mcp/handleToolCall.js';
+import { handleToolCall, isBareName, parseMetadataFromMarkdown } from '../../src/mcp/handleToolCall.js';
 
 interface SearcherLike {
   getCapabilities: () => { download: boolean; search: boolean; fullText: boolean; citations: boolean; requiresApiKey: boolean; supportedOptions: string[] };
@@ -56,6 +56,39 @@ describe('handleToolCall lazily constructs env-reading clients', () => {
       if (saved === undefined) delete process.env.MINERU_TOKEN;
       else process.env.MINERU_TOKEN = saved;
     }
+  });
+});
+
+describe('isBareName', () => {
+  it('flags arXiv ids and Unknown_* fallback names as bare', () => {
+    expect(isBareName('/x/downloads/1706.03762.pdf')).toBe(true);
+    expect(isBareName('/x/2301.00123v2.pdf')).toBe(true);
+    expect(isBareName('/x/Unknown_paper_2d5a.pdf')).toBe(true);
+  });
+  it('treats a properly named pdf as named', () => {
+    expect(isBareName('/x/Vaswani_2017_Attention_Is_All_You_Need_db6d.pdf')).toBe(false);
+  });
+});
+
+describe('parseMetadataFromMarkdown', () => {
+  it('extracts title from H1 and the author line right after it', () => {
+    const md = [
+      'RESEARCH ARTICLE',
+      '# Exposure to digital marketing enhances young adults interest',
+      'Limin Buchanan*, Bridget Kelly, Heather Yeatman',
+      'Early Start Research Institute, University of Wollongong, Australia',
+      '',
+      'Citation: Buchanan L, Kelly B (2017) ... doi:10.1371/journal.pone.0171226'
+    ].join('\n');
+    const meta = parseMetadataFromMarkdown(md);
+    expect(meta.title).toContain('Exposure to digital marketing');
+    expect(meta.author).toContain('Buchanan');
+    expect(meta.year).toBe('2017');
+  });
+
+  it('does not mistake an institution line for authors', () => {
+    const md = ['# Some Paper Title Here', 'Department of Physics, MIT', 'A. Author, B. Writer'].join('\n');
+    expect(parseMetadataFromMarkdown(md).author).toContain('A. Author');
   });
 });
 

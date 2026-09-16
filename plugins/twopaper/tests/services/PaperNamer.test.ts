@@ -13,7 +13,7 @@ describe('PaperNamer', () => {
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
-  it('names PDF as Author_Year_ShortTitle_Hash.pdf under author subdir', () => {
+  it('names PDF as Author_Year_ShortTitle_Hash.pdf flat in the output dir', () => {
     const n = new PaperNamer(tmp);
     const { sanitized } = n.resolveTargetPath({
       author: 'Geoffrey Hinton',
@@ -23,7 +23,8 @@ describe('PaperNamer', () => {
     });
     const base = path.basename(sanitized);
     expect(base).toMatch(/^Hinton_2017_Attention_Is_All_You_Need_[0-9a-f]{4}\.pdf$/);
-    expect(path.dirname(sanitized)).toBe(path.join(tmp, 'Hinton'));
+    // 扁平：直接落在输出根，不建作者子目录
+    expect(path.dirname(sanitized)).toBe(path.resolve(tmp));
   });
 
   it('cleans illegal filename chars and truncates title', () => {
@@ -49,5 +50,10 @@ describe('PaperNamer', () => {
     fs.mkdirSync(path.dirname(sanitized), { recursive: true });
     fs.writeFileSync(sanitized, 'x');
     expect(n.findExisting(input)).toBe(sanitized);
+  });
+
+  it('exposes the flat output root for co-locating the markdown', () => {
+    const n = new PaperNamer(tmp);
+    expect(n.basePath).toBe(path.resolve(tmp));
   });
 });
