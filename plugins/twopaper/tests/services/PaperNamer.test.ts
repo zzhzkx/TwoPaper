@@ -13,7 +13,7 @@ describe('PaperNamer', () => {
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
-  it('names PDF as Author_Year_ShortTitle_Hash.pdf flat in the output dir', () => {
+  it('names PDF as <Author_Year_ShortTitle_Hash>/<same>.pdf (one folder per paper)', () => {
     const n = new PaperNamer(tmp);
     const { sanitized } = n.resolveTargetPath({
       author: 'Geoffrey Hinton',
@@ -21,10 +21,17 @@ describe('PaperNamer', () => {
       title: 'Attention Is All You Need',
       doi: '10.48550/arxiv.1706.03762'
     });
-    const base = path.basename(sanitized);
-    expect(base).toMatch(/^Hinton_2017_Attention_Is_All_You_Need_[0-9a-f]{4}\.pdf$/);
-    // 扁平：直接落在输出根，不建作者子目录
-    expect(path.dirname(sanitized)).toBe(path.resolve(tmp));
+    const stem = path.basename(sanitized, '.pdf');
+    expect(stem).toMatch(/^Hinton_2017_Attention_Is_All_You_Need_[0-9a-f]{4}$/);
+    // 论文文件夹以论文命名，PDF 与该文件夹同名
+    expect(path.basename(sanitized)).toBe(`${stem}.pdf`);
+    expect(path.dirname(sanitized)).toBe(path.join(path.resolve(tmp), stem));
+  });
+
+  it('exposes the per-paper folder', () => {
+    const n = new PaperNamer(tmp);
+    const dir = n.resolvePaperDir({ author: 'Smith', year: 2020, title: 'T', doi: '10.1/x' });
+    expect(path.basename(dir)).toMatch(/^Smith_2020_T_[0-9a-f]{4}$/);
   });
 
   it('cleans illegal filename chars and truncates title', () => {

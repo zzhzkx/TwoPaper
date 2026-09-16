@@ -23,18 +23,19 @@ A Node.js Model Context Protocol (MCP) server for searching and downloading acad
 
 ### 产物布局（跟随当前工作目录）
 
-论文产物落在**你当前 Claude 工作目录**下的 `twopaper/`，而不是插件安装目录——换一个干净的工作目录时，下载与转换结果就出现在该目录里：
+论文产物落在**你当前 Claude 工作目录**下的 `twopaper/`，而不是插件安装目录——换一个干净的工作目录时，下载与转换结果就出现在该目录里。**每篇论文一个独立文件夹**（以论文命名），PDF / Markdown / 配图都收在里面：
 
 ```
 <cwd>/twopaper/
-├── <作者>_<年份>_<标题>_<哈希>.pdf    命名好的 PDF（扁平存放）
-├── <作者>_<年份>_<标题>_<哈希>.md     与 PDF 同名的全文 Markdown
-└── images/<sha>.jpg                   Markdown 引用的论文配图
+└── <作者>_<年份>_<标题>_<哈希>/
+    ├── <作者>_<年份>_<标题>_<哈希>.pdf    命名好的 PDF
+    ├── <作者>_<年份>_<标题>_<哈希>.md     与 PDF 同名的全文 Markdown
+    └── images/<sha>.jpg                   Markdown 引用的论文配图（按论文隔离）
 ```
 
 根目录取 `CLAUDE_PROJECT_DIR`（宿主注入的项目根，回退 `process.cwd()`）；可用 `TWOPAPER_OUTPUT_DIR` 覆盖，`DEFAULT_DOWNLOAD_PATH` / `MINERU_OUTPUT_DIR` 分别覆盖 PDF 与 Markdown 根。
 
-**裸名回填**：若某篇 PDF 下载时没取到元数据（退化为 `1706.03762.pdf` 或 `Unknown_*.pdf`），`get_fulltext` 转成 Markdown 后会**从正文解析标题/作者/年份，把 PDF 与 Markdown 一起改回可读名**。
+**裸名回填**：若某篇 PDF 下载时没取到元数据（退化为 `1706.03762.pdf` 或 `Unknown_*.pdf`），`get_fulltext` 转成 Markdown 后会**从正文解析标题/作者/年份**，把 PDF + Markdown + `images/` **一起迁进以论文命名的文件夹**。
 
 **桥接 scansci（paywalled 兜底）**：当无合法途径时，`get_pdf` 返回指令块，宿主引导调用已注册的 `scansci_pdf_download`；TwoPaper 不重新分发 scansci 闭源层，凭证留其本机。详见 [docs/BRIDGING.md](docs/BRIDGING.md)。
 

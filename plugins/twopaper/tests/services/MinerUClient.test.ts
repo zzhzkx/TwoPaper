@@ -87,10 +87,12 @@ describe('MinerUClient', () => {
     expect(res.markdown).toContain('String-shape');
   });
 
-  it('writes the markdown flat next to the pdf and extracts images into images/', async () => {
-    const journalPdf = path.join(tmp, 'Vaswani_2017_Attention_Is_All_You_Need_db6d.pdf');
-    fs.writeFileSync(journalPdf, '%PDF-1.4 fake');
+  it('writes the markdown next to its pdf and extracts images into that paper folder', async () => {
     const outDir = path.join(tmp, 'twopaper');
+    const paperDir = path.join(outDir, 'Vaswani_2017_Attention_Is_All_You_Need_db6d');
+    fs.mkdirSync(paperDir, { recursive: true });
+    const journalPdf = path.join(paperDir, 'Vaswani_2017_Attention_Is_All_You_Need_db6d.pdf');
+    fs.writeFileSync(journalPdf, '%PDF-1.4 fake');
 
     const zip = new AdmZip();
     zip.addFile('full.md', Buffer.from('# Title\n\n![](images/abc123.jpg)\n', 'utf-8'));
@@ -106,12 +108,12 @@ describe('MinerUClient', () => {
 
     const res = await new MinerUClient({ token: 'tok', outputDir: outDir, fetchImpl }).pdfToMarkdown(journalPdf);
 
-    // Markdown 与 PDF 同名同目录（扁平），且不再带 .full 中缀
-    expect(res.cachePath).toBe(path.join(outDir, 'Vaswani_2017_Attention_Is_All_You_Need_db6d.md'));
+    // Markdown 与该论文的 PDF 同目录同名
+    expect(res.cachePath).toBe(path.join(paperDir, 'Vaswani_2017_Attention_Is_All_You_Need_db6d.md'));
     expect(fs.existsSync(res.cachePath)).toBe(true);
-    // 配图落 images/，与 Markdown 里的 images/abc123.jpg 相对引用对齐
+    // 配图落在该论文文件夹内，与 Markdown 里的 images/abc123.jpg 相对引用对齐
     expect(res.imageCount).toBe(1);
-    expect(res.imagesDir).toBe(path.join(outDir, 'images'));
-    expect(fs.existsSync(path.join(outDir, 'images', 'abc123.jpg'))).toBe(true);
+    expect(res.imagesDir).toBe(path.join(paperDir, 'images'));
+    expect(fs.existsSync(path.join(paperDir, 'images', 'abc123.jpg'))).toBe(true);
   });
 });

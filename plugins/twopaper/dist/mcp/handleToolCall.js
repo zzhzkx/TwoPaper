@@ -254,8 +254,9 @@ function extractFirstAuthor(line) {
     return s.replace(/[\s*†‡§¶#\d.]+$/g, '').trim();
 }
 /**
- * 若 PDF 是裸名，则用 Markdown 解析出的元数据把它和 Markdown 一起重命名为「作者_年份_标题_哈希」。
- * 目标已存在（同篇论文已下载过）时跳过，不覆盖。失败静默——重命名是锦上添花，不应阻塞返回。
+ * 若 PDF 是裸名，则用 Markdown 解析出的元数据，把 PDF + Markdown + images/ 一并迁进
+ * 以论文命名的文件夹：<root>/<Author_Year_Title_Hash>/{同名.pdf, 同名.md, images/}。
+ * 目标已存在（同篇论文已下载过）时跳过，不覆盖。失败静默——重命名是锦上添花。
  */
 function tryRenameFromMarkdown(namer, pdfPath, mdPath, markdown) {
     const fallback = { renamed: false, pdfPath, mdPath };
@@ -265,16 +266,32 @@ function tryRenameFromMarkdown(namer, pdfPath, mdPath, markdown) {
         const meta = parseMetadataFromMarkdown(markdown);
         if (!meta.title)
             return fallback;
-        const { sanitized } = namer.resolveTargetPath(meta);
-        if (!sanitized || sanitized === pdfPath)
+        const newPdf = namer.resolveTargetPath(meta).sanitized; // <root>/<stem>/<stem>.pdf
+        if (!newPdf || newPdf === pdfPath)
             return fallback;
-        const newPdf = sanitized;
-        const newMd = newPdf.replace(/\.pdf$/i, '.md');
+        const newDir = path.dirname(newPdf);
+        const newMd = path.join(newDir, `${path.basename(newPdf).replace(/\.pdf$/i, '')}.md`);
         if (fs.existsSync(newPdf) || (newMd !== mdPath && fs.existsSync(newMd)))
             return fallback;
+        // 先建论文文件夹，再搬 PDF / MD / images
+        fs.mkdirSync(newDir, { recursive: true });
         fs.renameSync(pdfPath, newPdf);
+        const oldDir = path.dirname(mdPath);
         if (fs.existsSync(mdPath))
             fs.renameSync(mdPath, newMd);
+        const oldImages = path.join(oldDir, 'images');
+        const newImages = path.join(newDir, 'images');
+        if (fs.existsSync(oldImages)) {
+            if (!fs.existsSync(newImages))
+                fs.renameSync(oldImages, newImages);
+            // 目标 images 已存在时逐个搬移，避免覆盖
+            else
+                for (const f of fs.readdirSync(oldImages)) {
+                    const dest = path.join(newImages, f);
+                    if (!fs.existsSync(dest))
+                        fs.renameSync(path.join(oldImages, f), dest);
+                }
+        }
         return { renamed: true, pdfPath: newPdf, mdPath: newMd };
     }
     catch (e) {
@@ -686,12 +703,13 @@ export async function handleToolCall(toolNameRaw, rawArgs, searchers) {
                 return jsonTextResponse('Could not obtain a PDF to convert.');
             const result = await mineru.pdfToMarkdown(sourcePdf);
             // 若 PDF 只是裸名/Unknown（下载时没抓到元数据），用 MinerU 解析出的正文/标题回填重命名，
-            // 让 PDF 与 Markdown 都换成「作者_年份_标题_哈希」的可读名。失败不阻塞返回。
+            // 把 PDF/Markdown/images 一起迁进以论文命名的文件夹。失败不阻塞返回。
             const renamed = tryRenameFromMarkdown(paperNamer, sourcePdf, result.cachePath, result.markdown);
+            const finalMd = renamed.mdPath || result.cachePath;
             const imgNote = result.imageCount
-                ? `\nImages (${result.imageCount}) → ${result.imagesDir}`
+                ? `\nImages (${result.imageCount}) → ${path.join(path.dirname(finalMd), 'images')}`
                 : '';
-            const lines = [`Full-text (${result.modelVersion}) cached at ${renamed.mdPath || result.cachePath}${imgNote}`];
+            const lines = [`Full-text (${result.modelVersion}) cached at ${finalMd}${imgNote}`];
             if (renamed.renamed) {
                 lines.push(`PDF renamed → ${renamed.pdfPath}`);
             }

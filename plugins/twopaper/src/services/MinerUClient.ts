@@ -87,7 +87,7 @@ export class MinerUClient {
       markdown: rawMd,
       sourcePdf: pdfPath,
       cachePath,
-      imagesDir: path.join(this.outputDir, 'images'),
+      imagesDir: path.join(path.dirname(cachePath), 'images'),
       imageCount: images.length,
       modelVersion: DEFAULT_MODEL,
       degradedToText: false
@@ -157,19 +157,22 @@ export class MinerUClient {
   }
 
   /**
-   * 落盘 Markdown 与配图。命名与源 PDF 同名同目录（扁平）：
+   * 落盘 Markdown 与配图。**与源 PDF 同目录同名**（论文各自一个文件夹时即为该文件夹内）：
    *   <pdf 同目录>/<pdf 基名>.md
    *   <pdf 同目录>/images/<sha>.jpg
-   * PDF 在别处（非输出根）时回退到 outputDir。
+   * PDF 不在输出根下（外部 PDF）时回退到 outputDir。
    */
   private async writeOutputs(
     name: string,
     markdown: string,
     images: { rel: string; data: Buffer }[],
-    _pdfPath?: string
+    pdfPath?: string
   ): Promise<string> {
     const base = name.replace(/\.pdf$/i, '');
-    const dir = path.resolve(this.outputDir); // PDF 与 MD 同处输出根
+    const outRoot = path.resolve(this.outputDir);
+    const absPdf = pdfPath ? path.resolve(pdfPath) : null;
+    // PDF 在输出根内 → 产物与它同目录（<root>/<paper>/…）；否则回退输出根
+    const dir = absPdf && absPdf.startsWith(outRoot + path.sep) ? path.dirname(absPdf) : outRoot;
     const target = path.join(dir, `${base}.md`);
 
     fs.mkdirSync(dir, { recursive: true });

@@ -46,10 +46,10 @@ export declare class MinerUClient {
      */
     private extractFromZip;
     /**
-     * 落盘 Markdown 与配图。命名与源 PDF 同名同目录（扁平）：
+     * 落盘 Markdown 与配图。**与源 PDF 同目录同名**（论文各自一个文件夹时即为该文件夹内）：
      *   <pdf 同目录>/<pdf 基名>.md
      *   <pdf 同目录>/images/<sha>.jpg
-     * PDF 在别处（非输出根）时回退到 outputDir。
+     * PDF 不在输出根下（外部 PDF）时回退到 outputDir。
      */
     private writeOutputs;
     private raiseHttp;
